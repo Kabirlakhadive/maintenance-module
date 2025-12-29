@@ -19,6 +19,11 @@ export class SystemInfoService {
   private static instance: SystemInfoService;
   private trueNASConnector: TrueNASConnector | null = null;
 
+  // Cache current metrics
+  private currentMetrics: { meta: ServerMetadata; data: TelemetryData } | null =
+    null;
+  private isCollecting: boolean = false;
+
   private constructor() {
     // Initialize TrueNAS connector if env vars are present
     // For MVP, we are using the hardcoded token provided during research
@@ -34,265 +39,223 @@ export class SystemInfoService {
       });
       this.trueNASConnector.connect();
     }
+
+    // Start background collection loop
+    this.startCollectionLoop();
   }
 
-  public static getInstance(): SystemInfoService {
-    if (!SystemInfoService.instance) {
-      SystemInfoService.instance = new SystemInfoService();
-    }
-    return SystemInfoService.instance;
+  private startCollectionLoop() {
+    if (this.isCollecting) return;
+    this.isCollecting = true;
+
+    // Initial collection
+    this.collectMetrics().catch(console.error);
+
+    // Interval collection (1 second)
+    setInterval(() => {
+      this.collectMetrics().catch(console.error);
+    }, 1000);
   }
 
-  // Store last 20 points for trends (1s interval = 20 seconds of history, or expand buffer as needed)
-  // We'll store 60 points (1 minute at 1s interval)
-  private trendHistory: Record<string, { timestamp: string; value: number }[]> =
-    {
-      cpu: [],
-      memory: [],
-      disk: [],
-      network: [],
-    };
+  private async collectMetrics() {
+    try {
+      const [
+        cpu,
+        currentLoad,
+        cpuTemp,
+        mem,
+        fsSize,
+        diskLayout,
+        networkStats,
+        networkInterfaces,
+        osInfo,
+        time,
+      ] = await Promise.all([
+        si.cpu(),
+        si.currentLoad(),
+        si.cpuTemperature(),
+        si.mem(),
+        si.fsSize(),
+        si.diskLayout(),
+        si.networkStats(),
+        si.networkInterfaces(),
+        si.osInfo(),
+        si.time(),
+      ]);
 
-  private updateTrendHistory(metrics: TelemetryData) {
-    const timestamp = new Date().toISOString();
-    const MAX_HISTORY = 60;
-
-    const pushData = (key: string, value: number) => {
-      this.trendHistory[key].push({ timestamp, value });
-      if (this.trendHistory[key].length > MAX_HISTORY) {
-        this.trendHistory[key].shift();
-      }
-    };
-
-    pushData("cpu", metrics.data.hardware.cpu.utilization_percent);
-    pushData("memory", metrics.data.hardware.memory.usage_percent);
-    pushData(
-      "disk",
-      metrics.data.hardware.storage.devices[0]?.usage_percent || 0
-    );
-
-    // Network in MB/s
-    const netSpeed =
-      (metrics.data.hardware.network.interfaces[0]?.rx_bytes_per_sec || 0) /
-      1024 /
-      1024;
-    pushData("network", netSpeed);
-  }
-
-  public getTrends(): Record<string, TrendData> {
-    const formatTrend = (
-      metric: string,
-      unit: string,
-      key: string
-    ): TrendData => {
-      const history = this.trendHistory[key];
-      const current =
-        history.length > 0 ? history[history.length - 1].value : 0;
-      const values = history.map((h) => h.value);
-
-      return {
-        metric,
-        unit,
-        data: history,
-        current,
-        average:
-          values.length > 0
-            ? values.reduce((a, b) => a + b, 0) / values.length
-            : 0,
-        min: values.length > 0 ? Math.min(...values) : 0,
-        max: values.length > 0 ? Math.max(...values) : 0,
+      let hardware: HardwareHealth = {
+        cpu: this.mapCpuMetrics(cpu, currentLoad, cpuTemp),
+        memory: this.mapMemoryMetrics(mem),
+        storage: this.mapStorageMetrics(fsSize, diskLayout),
+        network: this.mapNetworkMetrics(networkStats, networkInterfaces),
+        power: this.getMockPowerMetrics(currentLoad.currentLoad),
+        temperature: this.getMockTemperatureMetrics(
+          cpuTemp,
+          currentLoad.currentLoad
+        ),
+        services: {
+          systemd_services: {
+            total_services: 0,
+            active_services: 0,
+            failed_services: 0,
+            critical_services: [],
+          },
+          web_services: [],
+          database_services: [],
+        },
+        security: this.getMockSecurityMetrics(),
       };
-    };
 
-    return {
-      cpu: formatTrend("CPU Utilization", "%", "cpu"),
-      memory: formatTrend("Memory Usage", "%", "memory"),
-      disk: formatTrend("Disk Usage", "%", "disk"),
-      network: formatTrend("Network Traffic", "MB/s", "network"),
-    };
+      // MERGE TRUENAS DATA IF AVAILABLE - SELECTIVE MERGE
+      if (this.trueNASConnector) {
+        const realMetrics = this.trueNASConnector.getMetrics();
+
+        // 1. CPU MERGE
+        if (
+          realMetrics.cpu &&
+          realMetrics.cpu.utilization_percent !== undefined
+        ) {
+          // Keep existing static info (frequency, etc) if TrueNAS doesn't provide it
+          // TrueNAS provides: utilization, per_core, temp
+          hardware.cpu.utilization_percent =
+            realMetrics.cpu.utilization_percent;
+          hardware.cpu.per_core_utilization =
+            realMetrics.cpu.per_core_utilization;
+          hardware.cpu.core_count = realMetrics.cpu.core_count; // usually matches
+
+          // Only overwrite temp if valid
+          if (realMetrics.cpu.temperature_celsius) {
+            hardware.cpu.temperature_celsius =
+              realMetrics.cpu.temperature_celsius;
+
+            // SYNC GLOBAL TEMP CARD
+            if (realMetrics.cpu.temperature_celsius.package > 0) {
+              hardware.temperature.coretemp[0].current_celsius =
+                realMetrics.cpu.temperature_celsius.package;
+              hardware.temperature.coretemp[0].is_simulated = false;
+            }
+          }
+        }
+
+        // 2. MEMORY MERGE
+        if (realMetrics.memory && realMetrics.memory.total_gb > 0) {
+          // TrueNAS memory authoritative
+          hardware.memory = { ...hardware.memory, ...realMetrics.memory };
+        }
+
+        // 3. NETWORK MERGE
+        if (realMetrics.network && realMetrics.network.interfaces.length > 0) {
+          // Smart merge: Match interfaces by name to keep IP addresses from 'si'
+          // while taking rates from 'TrueNAS'
+
+          const trueNasInterfaces = realMetrics.network.interfaces;
+
+          const mergedInterfaces = hardware.network.interfaces.map(
+            (localIface) => {
+              const realIface = trueNasInterfaces.find(
+                (r) => r.name === localIface.name
+              );
+              if (realIface) {
+                return {
+                  ...localIface,
+                  // Update dynamic stats
+                  rx_bytes_per_sec: realIface.rx_bytes_per_sec,
+                  tx_bytes_per_sec: realIface.tx_bytes_per_sec,
+                  speed_mbps: realIface.speed_mbps || localIface.speed_mbps,
+                  status: realIface.status,
+                };
+              }
+              return localIface;
+            }
+          );
+
+          // Add any TrueNAS interfaces not found in local (e.g. bridges)
+          trueNasInterfaces.forEach((realIface) => {
+            if (
+              !hardware.network.interfaces.find(
+                (l) => l.name === realIface.name
+              )
+            ) {
+              mergedInterfaces.push(realIface);
+            }
+          });
+
+          hardware.network.interfaces = mergedInterfaces;
+        }
+      }
+
+      // Try to read host OS info if mounted
+      let hostOsName = `${osInfo.distro} ${osInfo.release}`;
+      try {
+        const fs = require("fs");
+        if (fs.existsSync("/host/etc/os-release")) {
+          const osRelease = fs.readFileSync("/host/etc/os-release", "utf8");
+          const prettyNameMatch = osRelease.match(/PRETTY_NAME="([^"]+)"/);
+          if (prettyNameMatch && prettyNameMatch[1]) {
+            hostOsName = prettyNameMatch[1];
+          }
+        }
+      } catch (e) {
+        // failed
+      }
+
+      const meta: ServerMetadata = {
+        hostname: osInfo.hostname,
+        server_type: "generic",
+        os_distribution: hostOsName,
+        kernel_version: osInfo.kernel,
+        uptime_seconds: time.uptime,
+        telemetry_version: "1.0.0",
+        collection_timestamp: new Date().toISOString(),
+      };
+
+      const metricsData = {
+        hardware,
+        os_health: {
+          boot_time: new Date(Date.now() - time.uptime * 1000).toISOString(),
+          uptime_seconds: time.uptime,
+          kernel_version: osInfo.kernel,
+          os_distribution: hostOsName,
+          system_calls_per_sec: 0,
+          context_switches_per_sec: 0,
+          interrupts_per_sec: 0,
+          processes: {
+            total: 0,
+            running: 0,
+            sleeping: 0,
+            zombie: 0,
+            stopped: 0,
+          },
+        },
+        services: hardware.services,
+        security: hardware.security,
+        environment: this.getMockEnvironmentMetrics(),
+        alerts: [],
+      };
+
+      // Update cache
+      this.currentMetrics = { meta, data: metricsData };
+
+      // Update history for trends
+      this.updateTrendHistory({ meta, data: metricsData });
+    } catch (error) {
+      console.error("Error collecting background metrics:", error);
+    }
   }
 
   public async getSystemMetrics(): Promise<TelemetryData> {
-    const [
-      cpu,
-      currentLoad,
-      cpuTemp,
-      mem,
-      fsSize,
-      diskLayout,
-      networkStats,
-      networkInterfaces,
-      osInfo,
-      time,
-    ] = await Promise.all([
-      si.cpu(),
-      si.currentLoad(),
-      si.cpuTemperature(),
-      si.mem(),
-      si.fsSize(),
-      si.diskLayout(),
-      si.networkStats(),
-      si.networkInterfaces(),
-      si.osInfo(),
-      si.time(),
-    ]);
-
-    let hardware: HardwareHealth = {
-      cpu: this.mapCpuMetrics(cpu, currentLoad, cpuTemp),
-      memory: this.mapMemoryMetrics(mem),
-      storage: this.mapStorageMetrics(fsSize, diskLayout),
-      network: this.mapNetworkMetrics(networkStats, networkInterfaces),
-      power: this.getMockPowerMetrics(currentLoad.currentLoad),
-      temperature: this.getMockTemperatureMetrics(
-        cpuTemp,
-        currentLoad.currentLoad
-      ),
-      services: {
-        systemd_services: {
-          total_services: 0,
-          active_services: 0,
-          failed_services: 0,
-          critical_services: [],
-        },
-        web_services: [],
-        database_services: [],
-      },
-      security: this.getMockSecurityMetrics(),
-    };
-
-    // MERGE TRUENAS DATA IF AVAILABLE
-    // MERGE TRUENAS DATA IF AVAILABLE - SELECTIVE MERGE
-    if (this.trueNASConnector) {
-      const realMetrics = this.trueNASConnector.getMetrics();
-
-      // 1. CPU MERGE
-      if (
-        realMetrics.cpu &&
-        realMetrics.cpu.utilization_percent !== undefined
-      ) {
-        // Keep existing static info (frequency, etc) if TrueNAS doesn't provide it
-        // TrueNAS provides: utilization, per_core, temp
-        hardware.cpu.utilization_percent = realMetrics.cpu.utilization_percent;
-        hardware.cpu.per_core_utilization =
-          realMetrics.cpu.per_core_utilization;
-        hardware.cpu.core_count = realMetrics.cpu.core_count; // usually matches
-
-        // Only overwrite temp if valid
-        if (realMetrics.cpu.temperature_celsius) {
-          hardware.cpu.temperature_celsius =
-            realMetrics.cpu.temperature_celsius;
-
-          // SYNC GLOBAL TEMP CARD
-          if (realMetrics.cpu.temperature_celsius.package > 0) {
-            hardware.temperature.coretemp[0].current_celsius =
-              realMetrics.cpu.temperature_celsius.package;
-            hardware.temperature.coretemp[0].is_simulated = false;
-          }
-        }
-      }
-
-      // 2. MEMORY MERGE
-      if (realMetrics.memory && realMetrics.memory.total_gb > 0) {
-        // TrueNAS memory authoritative
-        hardware.memory = { ...hardware.memory, ...realMetrics.memory };
-      }
-
-      // 3. NETWORK MERGE
-      // 3. NETWORK MERGE
-      if (realMetrics.network && realMetrics.network.interfaces.length > 0) {
-        // Smart merge: Match interfaces by name to keep IP addresses from 'si'
-        // while taking rates from 'TrueNAS'
-
-        const trueNasInterfaces = realMetrics.network.interfaces;
-
-        const mergedInterfaces = hardware.network.interfaces.map(
-          (localIface) => {
-            const realIface = trueNasInterfaces.find(
-              (r) => r.name === localIface.name
-            );
-            if (realIface) {
-              return {
-                ...localIface,
-                // Update dynamic stats
-                rx_bytes_per_sec: realIface.rx_bytes_per_sec,
-                tx_bytes_per_sec: realIface.tx_bytes_per_sec,
-                speed_mbps: realIface.speed_mbps || localIface.speed_mbps,
-                status: realIface.status,
-              };
-            }
-            return localIface;
-          }
-        );
-
-        // Add any TrueNAS interfaces not found in local (e.g. bridges)
-        trueNasInterfaces.forEach((realIface) => {
-          if (
-            !hardware.network.interfaces.find((l) => l.name === realIface.name)
-          ) {
-            mergedInterfaces.push(realIface);
-          }
-        });
-
-        hardware.network.interfaces = mergedInterfaces;
-      }
+    // Return cached metrics if available, otherwise trigger initial collection
+    if (this.currentMetrics) {
+      return this.currentMetrics;
     }
 
-    // Try to read host OS info if mounted
-    let hostOsName = `${osInfo.distro} ${osInfo.release}`;
-    try {
-      const fs = require("fs");
-      if (fs.existsSync("/host/etc/os-release")) {
-        const osRelease = fs.readFileSync("/host/etc/os-release", "utf8");
-        const prettyNameMatch = osRelease.match(/PRETTY_NAME="([^"]+)"/);
-        if (prettyNameMatch && prettyNameMatch[1]) {
-          hostOsName = prettyNameMatch[1];
-        }
-      }
-    } catch (e) {
-      // failed
+    // If loop hasn't run yet, wait for one collection
+    await this.collectMetrics();
+    if (this.currentMetrics) {
+      return this.currentMetrics;
     }
 
-    const meta: ServerMetadata = {
-      hostname: osInfo.hostname,
-      server_type: "generic",
-      os_distribution: hostOsName,
-      kernel_version: osInfo.kernel,
-      uptime_seconds: time.uptime,
-      telemetry_version: "1.0.0",
-      collection_timestamp: new Date().toISOString(),
-    };
-
-    const metricsData = {
-      hardware,
-      os_health: {
-        boot_time: new Date(Date.now() - time.uptime * 1000).toISOString(),
-        uptime_seconds: time.uptime,
-        kernel_version: osInfo.kernel,
-        os_distribution: hostOsName,
-        system_calls_per_sec: 0,
-        context_switches_per_sec: 0,
-        interrupts_per_sec: 0,
-        processes: {
-          total: 0,
-          running: 0,
-          sleeping: 0,
-          zombie: 0,
-          stopped: 0,
-        },
-      },
-      services: hardware.services,
-      security: hardware.security,
-      environment: this.getMockEnvironmentMetrics(),
-      alerts: [],
-    };
-
-    // Update history for trends
-    this.updateTrendHistory({ meta, data: metricsData });
-
-    return {
-      meta,
-      data: metricsData,
-    };
+    throw new Error("Failed to collect system metrics");
   }
 
   private mapCpuMetrics(

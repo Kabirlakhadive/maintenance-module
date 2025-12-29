@@ -11,6 +11,7 @@ import {
   Tag,
   Divider,
   Table,
+  Radio,
 } from "antd";
 import ReactECharts from "echarts-for-react";
 import { GrafanaPanel } from "./GrafanaPanel";
@@ -29,13 +30,21 @@ const { Title, Text } = Typography;
 
 export const HardwareTrends: React.FC = () => {
   const { servers, trends } = useMockData();
+  const [timeRange, setTimeRange] = React.useState<number>(10); // Default 10 minutes
 
   // Prepare chart data
   const prepareTimeSeriesData = (trendKey: string) => {
     const trendData = trends[trendKey];
     if (!trendData) return [];
 
-    return trendData.data.map((point) => [point.timestamp, point.value]);
+    // Backend provides up to 60 min. Slice based on selected range.
+    // range in minutes. 1 min = 60 points (assuming 1s interval)
+    // Actually timestamp comparison is safer than assuming index count.
+    const cutoff = Date.now() - timeRange * 60 * 1000;
+
+    return trendData.data
+      .filter((p) => new Date(p.timestamp).getTime() > cutoff)
+      .map((point) => [point.timestamp, point.value]);
   };
 
   const prepareServerComparisonData = (metric: string) => {
@@ -113,6 +122,8 @@ export const HardwareTrends: React.FC = () => {
     xAxis: {
       type: "time",
       splitLine: { show: false },
+      min: new Date(Date.now() - timeRange * 60 * 1000),
+      max: new Date(),
     },
     yAxis: {
       type: "value",
@@ -340,7 +351,23 @@ export const HardwareTrends: React.FC = () => {
           title="Performance Trends"
           subtitle="REAL DATA FROM HOST SYSTEM"
           height={400}
-          actions={<Tag color="success">REAL</Tag>}
+          actions={
+            <Space>
+              <Radio.Group
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+                size="small"
+                buttonStyle="solid"
+              >
+                <Radio.Button value={1}>1m</Radio.Button>
+                <Radio.Button value={5}>5m</Radio.Button>
+                <Radio.Button value={10}>10m</Radio.Button>
+                <Radio.Button value={30}>30m</Radio.Button>
+                <Radio.Button value={60}>1h</Radio.Button>
+              </Radio.Group>
+              <Tag color="success">REAL</Tag>
+            </Space>
+          }
         >
           <Row gutter={[16, 16]}>
             <Col span={24}>
