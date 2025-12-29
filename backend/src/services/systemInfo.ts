@@ -73,10 +73,25 @@ export class SystemInfoService {
       security: this.getMockSecurityMetrics(), // Difficult to get real security metrics without root/auditing
     };
 
+    // Try to read host OS info if mounted
+    let hostOsName = `${osInfo.distro} ${osInfo.release}`;
+    try {
+      const fs = require("fs");
+      if (fs.existsSync("/host/etc/os-release")) {
+        const osRelease = fs.readFileSync("/host/etc/os-release", "utf8");
+        const prettyNameMatch = osRelease.match(/PRETTY_NAME="([^"]+)"/);
+        if (prettyNameMatch && prettyNameMatch[1]) {
+          hostOsName = prettyNameMatch[1];
+        }
+      }
+    } catch (e) {
+      // failed to read host os-release, fallback to container's
+    }
+
     const meta: ServerMetadata = {
       hostname: osInfo.hostname,
-      server_type: "generic", // Detection logic or env var
-      os_distribution: `${osInfo.distro} ${osInfo.release}`,
+      server_type: "generic",
+      os_distribution: hostOsName,
       kernel_version: osInfo.kernel,
       uptime_seconds: time.uptime,
       telemetry_version: "1.0.0",
@@ -91,12 +106,12 @@ export class SystemInfoService {
           boot_time: new Date(Date.now() - time.uptime * 1000).toISOString(),
           uptime_seconds: time.uptime,
           kernel_version: osInfo.kernel,
-          os_distribution: `${osInfo.distro} ${osInfo.release}`,
-          system_calls_per_sec: 0, // Requires more advanced monitoring
+          os_distribution: hostOsName,
+          system_calls_per_sec: 0,
           context_switches_per_sec: 0,
           interrupts_per_sec: 0,
           processes: {
-            total: 0, // Could get valid values from si.processes()
+            total: 0,
             running: 0,
             sleeping: 0,
             zombie: 0,
@@ -220,15 +235,59 @@ export class SystemInfoService {
         };
       });
     } else {
-      // Fallback: If no physical disks found (e.g. Docker container), map FileSystems as devices
-      devices = fs.map((f) => ({
-        device: f.mount,
-        model: `Filesystem (${f.fs})`,
+      // Fallback: Filter relevant filesystems (ZFS, EXT4, XFS, etc.) and exclude container noise
+      // We want to show what the user sees in TrueNAS (Datasets)
+      const allowedTypes = [
+        "zfs",
+        "ext4",
+        "xfs",
+        "btrfs",
+        "ntfs",
+        "apfs",
+        "vfat",
+        "exfat",
+        "mdadm",
+        "fuseblk",
+      ];
+
+      const relevantFs = fs.filter((f) => {
+        const isUnknown = f.type === "unknown" || !f.type;
+        const isNoise =
+          [
+            "overlay",
+            "tmpfs",
+            "devtmpfs",
+            "efi",
+            "efivarfs",
+            "squashfs",
+            "autofs",
+            "proc",
+            "sysfs",
+            "cgroup",
+            "fuse.lxcfs",
+          ].includes(f.fs.toLowerCase()) || f.fs.includes("overlay");
+
+        // Include if it's a known physical type OR if it looks like a ZFS dataset (often type 'zfs' or mount path in /mnt)
+        // Also TrueNAS datasets are often type 'zfs'
+        const isZfs = f.type && f.type.toLowerCase() === "zfs";
+        const isMnt =
+          f.mount.startsWith("/mnt") || f.mount.startsWith("/Volumes");
+
+        return (
+          (allowedTypes.includes(f.type.toLowerCase()) || isZfs || isMnt) &&
+          !isNoise &&
+          f.size > 0
+        );
+      });
+
+      devices = relevantFs.map((f) => ({
+        device: f.fs, // Shows the dataset name e.g. "pool/dataset"
+        model: f.mount, // Shows the mount point e.g. "/mnt/pool/dataset"
         size_gb: f.size / 1024 / 1024 / 1024,
         used_gb: f.used / 1024 / 1024 / 1024,
         available_gb: (f.size - f.used) / 1024 / 1024 / 1024,
         usage_percent: f.use,
-        drive_type: "ssd", // Assume SSD for virtual/container storage
+        drive_type: "ssd", // Assume SSD/Fast storage
         interface_type: "unknown" as any,
         smart_status: "healthy",
         temperature_celsius: 0,
