@@ -260,8 +260,12 @@ export class SystemInfoService {
       let hostOsName = `${osInfo.distro} ${osInfo.release}`;
       let realHostname = osInfo.hostname;
 
-      // Use TrueNAS hostname if available
-      if (this.trueNASConnector) {
+      // 1. Prefer Environment Variable (Override)
+      if (process.env.SERVER_HOSTNAME) {
+        realHostname = process.env.SERVER_HOSTNAME;
+      }
+      // 2. Prefer TrueNAS Hostname if available and no override
+      else if (this.trueNASConnector) {
         const tnHostname = this.trueNASConnector.getHostname();
         if (tnHostname) {
           realHostname = tnHostname;
