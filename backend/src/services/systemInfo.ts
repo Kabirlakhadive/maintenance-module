@@ -211,7 +211,7 @@ export class SystemInfoService {
   }
 
   private mapStorageMetrics(
-    fs: si.Systeminformation.FsSizeData[],
+    fsStats: si.Systeminformation.FsSizeData[],
     disks: si.Systeminformation.DiskLayoutData[]
   ): StorageMetrics {
     let devices: StorageDevice[] = [];
@@ -220,7 +220,7 @@ export class SystemInfoService {
       devices = disks.map((disk, index) => {
         // Heuristic for Windows: if devices[0], assume it contains C: (or use first available fs)
         // Real mapping requires matching mount points or device names
-        let fsInfo = fs.find(
+        let fsInfo = fsStats.find(
           (f) =>
             f.fs.startsWith(disk.device) ||
             (disk.device && f.fs.includes(disk.device))
@@ -228,12 +228,12 @@ export class SystemInfoService {
 
         // Fallback: If no match and it's the first disk, try connecting it to 'C:' or '/'
         if (!fsInfo && index === 0) {
-          fsInfo = fs.find((f) => f.fs === "C:" || f.mount === "/");
+          fsInfo = fsStats.find((f) => f.fs === "C:" || f.mount === "/");
         }
 
         // If still no match, just take the first one or default
-        if (!fsInfo && fs.length > 0 && index === 0) {
-          fsInfo = fs[0];
+        if (!fsInfo && fsStats.length > 0 && index === 0) {
+          fsInfo = fsStats[0];
         }
 
         const size_gb = disk.size / 1024 / 1024 / 1024;
@@ -276,7 +276,7 @@ export class SystemInfoService {
       // We expect pools to be mounted at /host/mnt (via docker-compose)
       // We process 'fs' which contains all detected filesystems
 
-      const relevantFs = fs.filter((f) => {
+      const relevantFs = fsStats.filter((f) => {
         // Must be ZFS
         // Note: systeminformation might report type 'zfs' or raw fs 'zfs'
         const isZfs =
