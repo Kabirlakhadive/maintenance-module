@@ -246,7 +246,7 @@ export class SystemInfoService {
         status: (iface.operstate === "up" ? "up" : "down") as "up" | "down",
         speed_mbps: iface.speed || 1000,
         duplex: iface.duplex,
-        mtu: iface.mtu,
+        mtu: iface.mtu || 0,
         rx_bytes_per_sec: stat ? stat.rx_sec : 0,
         tx_bytes_per_sec: stat ? stat.tx_sec : 0,
         rx_packets_per_sec: 0,
