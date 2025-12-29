@@ -1,0 +1,290 @@
+/* PT1 Dashboard Custom Styles */
+
+/* Global Styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dashboard Layout */
+.dashboard-container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+/* Grafana Panel Styles */
+.grafana-panel {
+  transition: all 0.2s ease;
+}
+
+.grafana-panel:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.grafana-panel .ant-card-head {
+  background: linear-gradient(to bottom, #fafafa, #f5f5f5);
+  border-bottom: 1px solid #e8e8e8;
+}
+
+/* Server Grid Styles */
+.server-card {
+  transition: all 0.2s ease;
+  border-left: 4px solid #52c41a;
+}
+
+.server-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.server-card.warning {
+  border-left-color: #faad14;
+  background-color: #fffbe6;
+}
+
+.server-card.critical {
+  border-left-color: #ff4d4f;
+  background-color: #fff2f0;
+}
+
+/* Status Badge Styles */
+.status-badge-success {
+  background-color: #f6ffed;
+  border-color: #b7eb8f;
+  color: #52c41a;
+}
+
+.status-badge-warning {
+  background-color: #fffbe6;
+  border-color: #ffe58f;
+  color: #faad14;
+}
+
+.status-badge-error {
+  background-color: #fff2f0;
+  border-color: #ffccc7;
+  color: #ff4d4f;
+}
+
+/* Progress Bar Customizations */
+.ant-progress-bg {
+  transition: all 0.3s ease;
+}
+
+.ant-progress-success .ant-progress-bg {
+  background-color: #52c41a;
+}
+
+.ant-progress-status-exception .ant-progress-bg {
+  background-color: #ff4d4f;
+}
+
+.ant-progress-status-active .ant-progress-bg {
+  background-color: #faad14;
+}
+
+/* Tab Navigation Styles */
+.ant-tabs-tab {
+  transition: all 0.2s ease;
+}
+
+.ant-tabs-tab:hover {
+  color: #1890ff;
+}
+
+.ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #1890ff;
+  font-weight: 500;
+}
+
+/* Chart Container Styles */
+.chart-container {
+  background: #fff;
+  border-radius: 4px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Metric Panel Styles */
+.metric-panel {
+  text-align: center;
+  padding: 20px;
+}
+
+.metric-value {
+  font-size: 32px;
+  font-weight: bold;
+  color: #262626;
+  line-height: 1.2;
+}
+
+.metric-unit {
+  font-size: 16px;
+  font-weight: normal;
+  margin-left: 4px;
+  color: #8c8c8c;
+}
+
+.metric-trend {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.metric-trend.up {
+  color: #ff4d4f;
+}
+
+.metric-trend.down {
+  color: #52c41a;
+}
+
+/* Table Styles */
+.ant-table-tbody > tr:hover > td {
+  background-color: #f5f5f5 !important;
+}
+
+.ant-table-thead > tr > th {
+  background-color: #fafafa;
+  font-weight: 600;
+}
+
+/* Timeline Styles */
+.ant-timeline-item-content {
+  margin-left: 20px;
+}
+
+/* Modal Styles */
+.ant-modal-content {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ant-modal-header {
+  background: linear-gradient(to right, #1890ff, #40a9ff);
+  border-bottom: none;
+}
+
+.ant-modal-header .ant-modal-title {
+  color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .metric-value {
+    font-size: 24px;
+  }
+
+  .ant-card {
+    margin-bottom: 16px;
+  }
+
+  .ant-tabs-tab {
+    font-size: 14px;
+    padding: 8px 12px;
+  }
+}
+
+@media (max-width: 576px) {
+  .server-card {
+    margin-bottom: 12px;
+  }
+
+  .metric-panel {
+    padding: 16px;
+  }
+
+  .ant-col {
+    margin-bottom: 16px;
+  }
+}
+
+/* Loading and Animation Styles */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Status Indicators */
+.status-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-indicator.healthy {
+  background-color: #52c41a;
+}
+
+.status-indicator.warning {
+  background-color: #faad14;
+}
+
+.status-indicator.critical {
+  background-color: #ff4d4f;
+}
+
+/* Utility Classes */
+.text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mb-16 {
+  margin-bottom: 16px;
+}
+
+.mt-16 {
+  margin-top: 16px;
+}

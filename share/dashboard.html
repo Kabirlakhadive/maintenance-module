@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PT1 Server Telemetry Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Brand Colors - Designer Friendly */
+            --primary-color: #001529;
+            --secondary-color: #1890ff;
+            --success-color: #52c41a;
+            --warning-color: #faad14;
+            --error-color: #ff4d4f;
+            --info-color: #1890ff;
+
+            /* Neutral Colors */
+            --text-primary: #262626;
+            --text-secondary: #8c8c8c;
+            --text-disabled: #bfbfbf;
+            --border-color: #e8e8e8;
+            --border-light: #f0f0f0;
+
+            /* Background Colors */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-component: #fafafa;
+            --bg-hover: #f0f9ff;
+
+            /* Status Colors */
+            --status-healthy: #52c41a;
+            --status-warning: #faad14;
+            --status-critical: #ff4d4f;
+            --status-default: #d9d9d9;
+
+            /* Spacing */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+
+            /* Border Radius */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+
+            /* Shadows */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
+
+            /* Typography */
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --font-size-xs: 10px;
+            --font-size-sm: 12px;
+            --font-size-md: 14px;
+            --font-size-lg: 16px;
+            --font-size-xl: 18px;
+            --font-size-xxl: 20px;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        /* Header Styles */
+        .header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: var(--spacing-md) var(--spacing-lg);
+            box-shadow: var(--shadow-md);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header-title {
+            font-size: var(--font-size-xxl);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-lg);
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            font-size: var(--font-size-sm);
+        }
+
+        .header-info .label {
+            color: var(--text-secondary);
+        }
+
+        .header-info .value {
+            color: white;
+            font-weight: 500;
+        }
+
+        /* Button Styles */
+        .btn {
+            background: none;
+            border: 1px solid transparent;
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: var(--font-size-md);
+            padding: var(--spacing-sm) var(--spacing-md);
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        .btn:hover {
+            background-color: var(--bg-hover);
+        }
+
+        .btn-text {
+            border: none;
+            color: white;
+        }
+
+        .btn-text:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-primary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #40a9ff;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--spacing-lg);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            gap: var(--spacing-lg);
+        }
+
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .server-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--spacing-md);
+        }
+
+        /* Card Styles */
+        .card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .card-header {
+            padding: var(--spacing-sm) var(--spacing-md);
+            background: var(--bg-component);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 40px;
+        }
+
+        .card-title {
+            font-size: var(--font-size-md);
+            font-weight: 500;
+            color: var(--text-primary);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .card-subtitle {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            margin-top: var(--spacing-xs);
+        }
+
+        .card-content {
+            padding: var(--spacing-md);
+        }
+
+        /* Metric Panel */
+        .metric-panel {
+            text-align: center;
+            padding: var(--spacing-lg);
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--text-primary);
+            line-height: 1;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .metric-unit {
+            font-size: 16px;
+            font-weight: normal;
+            margin-left: var(--spacing-xs);
+        }
+
+        .metric-badge {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            margin-top: var(--spacing-sm);
+        }
+
+        .metric-trend {
+            font-size: var(--font-size-sm);
+            margin-top: var(--spacing-sm);
+        }
+
+        .trend-up {
+            color: var(--error-color);
+        }
+
+        .trend-down {
+            color: var(--success-color);
+        }
+
+        /* Status Indicators */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-healthy { background-color: var(--status-healthy); }
+        .status-warning { background-color: var(--status-warning); }
+        .status-critical { background-color: var(--status-critical); }
+        .status-default { background-color: var(--status-default); }
+
+        .status-badge {
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--radius-sm);
+            font-size: var(--font-size-xs);
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .badge-healthy {
+            background: #f6ffed;
+            color: var(--success-color);
+            border: 1px solid #b7eb8f;
+        }
+
+        .badge-warning {
+            background: #fffbe6;
+            color: var(--warning-color);
+            border: 1px solid #ffe58f;
+        }
+
+        .badge-critical {
+            background: #fff2f0;
+            color: var(--error-color);
+            border: 1px solid #ffccc7;
+        }
+
+        .badge-blue {
+            background: #e6f7ff;
+            color: var(--info-color);
+            border: 1px solid #91d5ff;
+        }
+
+        /* Server Card */
+        .server-card {
+            cursor: pointer;
+            border-left: 4px solid var(--status-healthy);
+            transition: all 0.2s ease;
+        }
+
+        .server-card.warning {
+            border-left-color: var(--status-warning);
+            background: #fffbe6;
+        }
+
+        .server-card.critical {
+            border-left-color: var(--status-critical);
+            background: #fff2f0;
+        }
+
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .server-name {
+            font-size: var(--font-size-md);
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .server-info {
+            font-size: var(--font-size-xs);
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--border-light);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--status-healthy);
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+
+        .progress-fill.warning {
+            background: var(--status-warning);
+        }
+
+        .progress-fill.error {
+            background: var(--status-critical);
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .progress-label .value {
+            color: var(--text-secondary);
+        }
+
+        .server-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: var(--font-size-xs);
+            color: var(--text-secondary);
+        }
+
+        .server-tags {
+            display: flex;
+            gap: var(--spacing-xs);
+        }
+
+        /* Alert Tags */
+        .alert-tag {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            line-height: 14px;
+            margin: 2px;
+        }
+
+        /* Tabs */
+        .tabs {
+            background: var(--bg-primary);
+            border-radius: var(--radius-sm);
+            margin-bottom: var(--spacing-md);
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid var(--border-light);
+            padding: 0 var(--spacing-lg);
+        }
+
+        .tab-item {
+            padding: var(--spacing-md) var(--spacing-lg);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: var(--text-secondary);
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .tab-item:hover {
+            color: var(--text-primary);
+        }
+
+        .tab-item.active {
+            color: var(--secondary-color);
+            border-bottom-color: var(--secondary-color);
+        }
+
+        .tab-content {
+            padding: var(--spacing-lg);
+            min-height: 400px;
+        }
+
+        /* Utility Classes */
+        .flex {
+            display: flex;
+        }
+
+        .flex-between {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .flex-center {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gap-sm { gap: var(--spacing-sm); }
+        .gap-md { gap: var(--spacing-md); }
+        .gap-lg { gap: var(--spacing-lg); }
+
+        .text-secondary { color: var(--text-secondary); }
+        .text-sm { font-size: var(--font-size-sm); }
+        .text-xs { font-size: var(--font-size-xs); }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--spacing-xl);
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-light);
+            border-top-color: var(--secondary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: var(--spacing-sm);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            padding: var(--spacing-lg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .modal-body {
+            padding: var(--spacing-lg);
+        }
+
+        .modal-footer {
+            padding: var(--spacing-lg);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: var(--spacing-sm);
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-md);
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--spacing-sm) 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .detail-value {
+            text-align: right;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: var(--spacing-md);
+                align-items: flex-start;
+            }
+
+            .metrics-row {
+                grid-template-columns: 1fr;
+            }
+
+            .server-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tab-nav {
+                padding: 0 var(--spacing-md);
+            }
+
+            .container {
+                padding: var(--spacing-md);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-content">
+            <div class="header-title">
+                <span>PT1 Server Telemetry</span>
+                <span class="status-badge badge-blue" id="alertBadge" style="display: none;">!</span>
+            </div>
+            <div class="header-controls">
+                <div class="header-info">
+                    <span class="label">Last updated:</span>
+                    <span class="value" id="lastUpdate">--:--:--</span>
+                </div>
+                <div class="header-info">
+                    <span class="label">Auto-refresh:</span>
+                    <label style="position: relative; display: inline-block; width: 44px; height: 22px;">
+                        <input type="checkbox" id="autoRefresh" checked style="opacity: 0; width: 0; height: 0;">
+                        <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;" id="switchSlider"></span>
+                    </label>
+                </div>
+                <button class="btn btn-text" onclick="refreshData()">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Metrics Summary -->
+        <div class="metrics-row">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="status-dot status-healthy"></span>
+                        Infrastructure Health
+                    </div>
+                </div>
+                <div class="metric-panel">
+                    <div class="metric-value" id="healthScore">--%</div>
+                    <div class="metric-badge" id="healthyServers">-- servers healthy</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="status-dot status-healthy"></span>
+                        Server Status
+                    </div>
+                </div>
+                <div class="metric-panel">
+                    <div class="metric-value" id="totalServers">--</div>
+                    <div class="metric-badge" id="serverStatus">-- critical, -- warning</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="status-dot status-healthy"></span>
+                        Average CPU Load
+                    </div>
+                </div>
+                <div class="metric-panel">
+                    <div class="metric-value" id="avgCPU">--%</div>
+                    <div class="metric-trend" id="cpuTrend">--</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="status-dot status-healthy"></span>
+                        Average Memory Usage
+                    </div>
+                </div>
+                <div class="metric-panel">
+                    <div class="metric-value" id="avgMemory">--%</div>
+                    <div class="metric-trend" id="memoryTrend">--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab-nav">
+                <div class="tab-item active" onclick="switchTab('overview')">
+                    📊 Overview
+                </div>
+                <div class="tab-item" onclick="switchTab('hardware')">
+                    🖥️ Hardware
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="dashboard-grid">
+            <div id="overviewTab" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="flex-between">
+                            <div>
+                                <div class="card-title">Server Infrastructure Overview</div>
+                                <div class="card-subtitle" id="serverOverview">-- servers</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="status-badge badge-blue" id="issueCount">0</span>
+                                <button class="btn" onclick="refreshData()">⋮</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div class="server-grid" id="serverGrid">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                Loading server data...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="hardwareTab" class="tab-content" style="display: none;">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Hardware trends coming soon...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Server Detail Modal -->
+    <div class="modal" id="serverModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">
+                    <span class="status-dot" id="modalStatusDot"></span>
+                    <span id="modalHostname"></span>
+                </h3>
+                <button class="btn" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content will be dynamically inserted -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal()">Close</button>
+                <button class="btn btn-primary" onclick="closeModal()">View Details</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data Generation (mimicking the React mock data)
+        const SERVER_CONFIGS = [
+            { hostname: 'SRV-WEB-01', type: 'inspur', role: 'web' },
+            { hostname: 'SRV-WEB-02', type: 'hp', role: 'web' },
+            { hostname: 'SRV-DB-01', type: 'dell', role: 'database' },
+            { hostname: 'SRV-DB-02', type: 'dell', role: 'database' },
+            { hostname: 'SRV-API-01', type: 'inspur', role: 'api' },
+            { hostname: 'SRV-API-02', type: 'hp', role: 'api' },
+            { hostname: 'SRV-CACHE-01', type: 'generic', role: 'cache' },
+            { hostname: 'SRV-MON-01', type: 'inspur', role: 'monitoring' },
+            { hostname: 'SRV-BACKUP-01', type: 'hp', role: 'backup' },
+            { hostname: 'SRV-DEV-01', type: 'generic', role: 'development' },
+            { hostname: 'SRV-STAGE-01', type: 'inspur', role: 'staging' },
+            { hostname: 'SRV-PROD-01', type: 'dell', role: 'production' }
+        ];
+
+        const OS_DISTRIBUTIONS = ['Ubuntu 22.04 LTS', 'CentOS 8', 'Debian 11', 'RHEL 9'];
+
+        function randomBetween(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function randomFloat(min, max, decimals = 1) {
+            return parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
+        }
+
+        function randomChoice(array) {
+            return array[Math.floor(Math.random() * array.length)];
+        }
+
+        function generateServerStatus(hostname, serverType) {
+            const rand = Math.random();
+            if (rand < 0.7) return 'healthy';
+            if (rand < 0.9) return 'warning';
+            return 'critical';
+        }
+
+        function generateServerData(config) {
+            const status = generateServerStatus(config.hostname, config.type);
+            const osDistribution = randomChoice(OS_DISTRIBUTIONS);
+
+            // Generate realistic metrics
+            const baseLoad = config.role === 'database' ? 60 : config.role === 'web' ? 45 : 30;
+            const loadMultiplier = status === 'critical' ? 1.5 : status === 'warning' ? 1.2 : 1;
+            const cpuUtilization = Math.min(95, baseLoad * loadMultiplier + randomFloat(-10, status === 'critical' ? 30 : 20));
+
+            const totalGb = randomChoice([32, 64, 128, 256]);
+            const baseUsage = status === 'critical' ? 0.9 : status === 'warning' ? 0.75 : 0.6;
+            const usedGb = Math.floor(totalGb * baseUsage + randomFloat(-0.1, 0.1) * totalGb);
+            const memoryUsage = (usedGb / totalGb) * 100;
+
+            const devices = [
+                {
+                    device: '/dev/sda',
+                    model: 'Samsung SSD 970 EVO',
+                    usage_percent: randomBetween(30, 90),
+                    smart_status: status === 'critical' ? 'critical' : status === 'warning' ? 'warning' : 'healthy'
+                }
+            ];
+
+            // Generate alerts
+            const alerts = [];
+            if (status === 'critical') {
+                alerts.push({
+                    severity: 'critical',
+                    title: 'High CPU Utilization',
+                    description: 'CPU usage is above 90% for more than 5 minutes',
+                    resolved: false
+                });
+            }
+            if (status === 'warning' || status === 'critical') {
+                alerts.push({
+                    severity: status,
+                    title: 'Low Disk Space',
+                    description: 'Disk usage is above 80%',
+                    resolved: false
+                });
+            }
+
+            return {
+                hostname: config.hostname,
+                status,
+                server_type: config.type,
+                os_distribution: osDistribution,
+                hardware: {
+                    cpu: {
+                        utilization_percent: cpuUtilization,
+                        temperature_celsius: {
+                            package: 55 + (cpuUtilization / 100) * 30 + (status === 'critical' ? 15 : 0)
+                        }
+                    },
+                    memory: {
+                        total_gb: totalGb,
+                        used_gb: usedGb,
+                        usage_percent: memoryUsage
+                    },
+                    storage: {
+                        devices
+                    },
+                    network: {
+                        active_connections: {
+                            tcp_established: randomBetween(100, 500),
+                            udp_active: randomBetween(20, 80)
+                        }
+                    }
+                },
+                alerts
+            };
+        }
+
+        // Global state
+        let servers = [];
+        let currentTab = 'overview';
+        let autoRefreshInterval = null;
+
+        // UI Functions
+        function formatLastUpdate(date) {
+            return date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            return `${days}d ${hours}h`;
+        }
+
+        function getProgressStatus(value, warningThreshold, criticalThreshold) {
+            if (value >= criticalThreshold) return 'error';
+            if (value >= warningThreshold) return 'warning';
+            return 'normal';
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+
+            // Update tab navigation
+            document.querySelectorAll('.tab-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Show/hide tab content
+            document.getElementById('overviewTab').style.display = tab === 'overview' ? 'block' : 'none';
+            document.getElementById('hardwareTab').style.display = tab === 'hardware' ? 'block' : 'none';
+        }
+
+        function refreshData() {
+            generateData();
+        }
+
+        function generateData() {
+            // Generate server data
+            servers = SERVER_CONFIGS.map(config => generateServerData(config));
+
+            // Update metrics
+            const healthyServers = servers.filter(s => s.status === 'healthy').length;
+            const warningServers = servers.filter(s => s.status === 'warning').length;
+            const criticalServers = servers.filter(s => s.status === 'critical').length;
+            const totalServers = servers.length;
+            const healthScore = Math.round((healthyServers / totalServers) * 100);
+
+            const avgCPU = Math.round(servers.reduce((sum, s) => sum + s.hardware.cpu.utilization_percent, 0) / servers.length);
+            const avgMemory = Math.round(servers.reduce((sum, s) => sum + s.hardware.memory.usage_percent, 0) / servers.length);
+            const totalAlerts = servers.reduce((sum, s) => sum + s.alerts.filter(a => !a.resolved).length, 0);
+
+            // Update UI
+            document.getElementById('healthScore').textContent = `${healthScore}%`;
+            document.getElementById('healthyServers').textContent = `${healthyServers} servers healthy`;
+            document.getElementById('totalServers').textContent = totalServers;
+            document.getElementById('serverStatus').textContent = `${criticalServers} critical, ${warningServers} warning`;
+            document.getElementById('avgCPU').textContent = `${avgCPU}%`;
+            document.getElementById('avgMemory').textContent = `${avgMemory}%`;
+            document.getElementById('serverOverview').textContent = `${totalServers} servers • ${healthyServers} healthy`;
+            document.getElementById('issueCount').textContent = servers.filter(s => s.status !== 'healthy').length;
+            document.getElementById('lastUpdate').textContent = formatLastUpdate(new Date());
+
+            // Update alert badge
+            const alertBadge = document.getElementById('alertBadge');
+            if (totalAlerts > 0) {
+                alertBadge.style.display = 'inline-block';
+                alertBadge.textContent = totalAlerts;
+            } else {
+                alertBadge.style.display = 'none';
+            }
+
+            // Update metric status colors
+            updateMetricStatus('healthScore', healthScore >= 90 ? 'success' : healthScore >= 70 ? 'warning' : 'error');
+            updateMetricStatus('totalServers', criticalServers > 0 ? 'error' : warningServers > 0 ? 'warning' : 'success');
+            updateMetricStatus('avgCPU', avgCPU >= 85 ? 'error' : avgCPU >= 70 ? 'warning' : 'success');
+            updateMetricStatus('avgMemory', avgMemory >= 90 ? 'error' : avgMemory >= 80 ? 'warning' : 'success');
+
+            // Render server grid
+            renderServerGrid();
+        }
+
+        function updateMetricStatus(elementId, status) {
+            const card = document.getElementById(elementId).closest('.card');
+            const dot = card.querySelector('.status-dot');
+            dot.className = `status-dot status-${status === 'success' ? 'healthy' : status === 'warning' ? 'warning' : 'critical'}`;
+        }
+
+        function renderServerGrid() {
+            const grid = document.getElementById('serverGrid');
+            grid.innerHTML = servers.map(server => `
+                <div class="card server-card ${server.status}" onclick="showServerDetails('${server.hostname}')">
+                    <div class="card-content">
+                        <div class="server-header">
+                            <h5 class="server-name">${server.hostname}</h5>
+                            <span class="status-dot status-${server.status}"></span>
+                        </div>
+                        <div class="server-info">
+                            ${server.server_type.toUpperCase()} • ${server.os_distribution}
+                        </div>
+
+                        <div class="progress-label">
+                            <span>CPU</span>
+                            <span class="value">${server.hardware.cpu.utilization_percent.toFixed(1)}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill ${getProgressStatus(server.hardware.cpu.utilization_percent, 70, 85)}"
+                                 style="width: ${server.hardware.cpu.utilization_percent}%"></div>
+                        </div>
+
+                        <div class="progress-label">
+                            <span>Memory</span>
+                            <span class="value">${server.hardware.memory.used_gb.toFixed(0)}GB / ${server.hardware.memory.total_gb.toFixed(0)}GB</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill ${getProgressStatus(server.hardware.memory.usage_percent, 80, 90)}"
+                                 style="width: ${server.hardware.memory.usage_percent}%"></div>
+                        </div>
+
+                        <div class="progress-label">
+                            <span>Storage</span>
+                            <span class="value">${server.hardware.storage.devices[0]?.usage_percent.toFixed(0)}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill ${getProgressStatus(server.hardware.storage.devices[0]?.usage_percent || 0, 80, 90)}"
+                                 style="width: ${server.hardware.storage.devices[0]?.usage_percent || 0}%"></div>
+                        </div>
+
+                        <div class="server-footer">
+                            <span>Uptime: ${formatUptime(randomBetween(86400, 2592000))}</span>
+                            <div class="server-tags">
+                                <span class="alert-tag badge-blue">${server.hardware.cpu.temperature_celsius.package.toFixed(0)}°C</span>
+                                ${server.alerts.filter(a => !a.resolved).length > 0 ?
+                                    `<span class="alert-tag badge-critical">${server.alerts.filter(a => !a.resolved).length} alerts</span>` : ''}
+                            </div>
+                        </div>
+
+                        ${server.alerts.filter(a => !a.resolved).length > 0 ? `
+                            <div style="margin-top: 8px;">
+                                ${server.alerts.filter(a => !a.resolved).slice(0, 2).map(alert =>
+                                    `<span class="alert-tag ${alert.severity === 'critical' ? 'badge-critical' : 'badge-warning'}">${alert.title}</span>`
+                                ).join('')}
+                                ${server.alerts.filter(a => !a.resolved).length > 2 ?
+                                    `<span class="alert-tag">+${server.alerts.filter(a => !a.resolved).length - 2} more</span>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showServerDetails(hostname) {
+            const server = servers.find(s => s.hostname === hostname);
+            if (!server) return;
+
+            const modal = document.getElementById('serverModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalHostname = document.getElementById('modalHostname');
+            const modalStatusDot = document.getElementById('modalStatusDot');
+            const modalBody = document.getElementById('modalBody');
+
+            modalHostname.textContent = server.hostname;
+            modalStatusDot.className = `status-dot status-${server.status}`;
+
+            modalBody.innerHTML = `
+                <div class="details-grid">
+                    <div>
+                        <div class="detail-item">
+                            <span class="detail-label">Server Type</span>
+                            <span class="detail-value">${server.server_type.toUpperCase()}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">OS</span>
+                            <span class="detail-value">${server.os_distribution}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">CPU Utilization</span>
+                            <span class="detail-value">${server.hardware.cpu.utilization_percent.toFixed(1)}%</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Memory Usage</span>
+                            <span class="detail-value">${server.hardware.memory.usage_percent.toFixed(1)}%</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Temperature</span>
+                            <span class="detail-value">${server.hardware.cpu.temperature_celsius.package.toFixed(1)}°C</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Active Connections</span>
+                            <span class="detail-value">${server.hardware.network.active_connections.tcp_established} TCP / ${server.hardware.network.active_connections.udp_active} UDP</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="detail-item">
+                            <span class="detail-label">Storage Device</span>
+                            <span class="detail-value">${server.hardware.storage.devices[0]?.model || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Storage Usage</span>
+                            <span class="detail-value">${server.hardware.storage.devices[0]?.usage_percent.toFixed(0)}% (${server.hardware.storage.devices[0]?.smart_status})</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Memory Total</span>
+                            <span class="detail-value">${server.hardware.memory.total_gb} GB</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Memory Used</span>
+                            <span class="detail-value">${server.hardware.memory.used_gb.toFixed(0)} GB</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Status</span>
+                            <span class="detail-value">
+                                <span class="status-badge badge-${server.status === 'healthy' ? 'healthy' : server.status === 'warning' ? 'warning' : 'critical'}">
+                                    ${server.status.toUpperCase()}
+                                </span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 24px;">
+                    <h4 style="margin-bottom: 16px;">Active Alerts</h4>
+                    ${server.alerts.length > 0 ? `
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            ${server.alerts.map(alert => `
+                                <span class="alert-tag ${alert.severity === 'critical' ? 'badge-critical' : alert.severity === 'warning' ? 'badge-warning' : 'badge-blue'}">
+                                    ${alert.title}: ${alert.description}
+                                </span>
+                            `).join('')}
+                        </div>
+                    ` : '<p style="color: var(--text-secondary);">No active alerts</p>'}
+                </div>
+            `;
+
+            modal.classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('serverModal').classList.remove('show');
+        }
+
+        function setupAutoRefresh() {
+            const autoRefreshCheckbox = document.getElementById('autoRefresh');
+            const switchSlider = document.getElementById('switchSlider');
+
+            // Update switch styling
+            function updateSwitch() {
+                if (autoRefreshCheckbox.checked) {
+                    switchSlider.style.backgroundColor = '#1890ff';
+                    switchSlider.style.transform = 'translateX(22px)';
+                } else {
+                    switchSlider.style.backgroundColor = '#ccc';
+                    switchSlider.style.transform = 'translateX(0)';
+                }
+            }
+
+            autoRefreshCheckbox.addEventListener('change', updateSwitch);
+            updateSwitch(); // Initial state
+
+            // Setup auto-refresh interval
+            function startAutoRefresh() {
+                if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+                if (autoRefreshCheckbox.checked) {
+                    autoRefreshInterval = setInterval(generateData, 5000);
+                }
+            }
+
+            autoRefreshCheckbox.addEventListener('change', startAutoRefresh);
+            startAutoRefresh();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            generateData();
+            setupAutoRefresh();
+        });
+
+        // Close modal on escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Close modal on background click
+        document.getElementById('serverModal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
