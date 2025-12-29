@@ -143,6 +143,7 @@ export interface TemperatureSensor {
   current_celsius: number;
   high_celsius: number;
   critical_celsius: number;
+  is_simulated?: boolean;
 }
 
 export interface FanData {
@@ -156,9 +157,11 @@ export interface FanData {
   status: "normal" | "warning" | "critical" | "failed";
   rpm_history: number[];
   temperature_correlated: boolean;
+  is_simulated?: boolean;
 }
 
 export interface PowerMetrics {
+  is_simulated?: boolean;
   psu_status: ("healthy" | "warning" | "critical")[];
   psu_count: number;
   psu_redundancy: boolean;
@@ -187,6 +190,7 @@ export interface PowerMetrics {
 }
 
 export interface EnvironmentalMetrics {
+  is_simulated?: boolean;
   temperature: {
     ambient_celsius: number;
     intake_celsius: number;
@@ -252,6 +256,7 @@ export interface ServiceMetrics {
 }
 
 export interface SecurityMetrics {
+  is_simulated?: boolean;
   authentication: {
     failed_ssh_attempts_24h: number;
     failed_login_attempts_24h: number;

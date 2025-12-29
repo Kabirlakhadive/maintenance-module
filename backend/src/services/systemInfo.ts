@@ -235,59 +235,40 @@ export class SystemInfoService {
         };
       });
     } else {
-      // Fallback: Filter relevant filesystems (ZFS, EXT4, XFS, etc.) and exclude container noise
-      // We want to show what the user sees in TrueNAS (Datasets)
-      const allowedTypes = [
-        "zfs",
-        "ext4",
-        "xfs",
-        "btrfs",
-        "ntfs",
-        "apfs",
-        "vfat",
-        "exfat",
-        "mdadm",
-        "fuseblk",
-      ];
+      // Fallback: Specific logic for TrueNAS ZFS Pools
+      // We expect pools to be mounted at /host/mnt (via docker-compose)
+      // We process 'fs' which contains all detected filesystems
 
       const relevantFs = fs.filter((f) => {
-        const isUnknown = f.type === "unknown" || !f.type;
-        const isNoise =
-          [
-            "overlay",
-            "tmpfs",
-            "devtmpfs",
-            "efi",
-            "efivarfs",
-            "squashfs",
-            "autofs",
-            "proc",
-            "sysfs",
-            "cgroup",
-            "fuse.lxcfs",
-          ].includes(f.fs.toLowerCase()) || f.fs.includes("overlay");
+        // Must be ZFS
+        // Note: systeminformation might report type 'zfs' or raw fs 'zfs'
+        const isZfs =
+          (f.type && f.type.toLowerCase() === "zfs") ||
+          (f.fs && !f.fs.startsWith("/")); // zfs pool names don't start with /
 
-        // Include if it's a known physical type OR if it looks like a ZFS dataset (often type 'zfs' or mount path in /mnt)
-        // Also TrueNAS datasets are often type 'zfs'
-        const isZfs = f.type && f.type.toLowerCase() === "zfs";
-        const isMnt =
-          f.mount.startsWith("/mnt") || f.mount.startsWith("/Volumes");
+        if (!isZfs) return false;
 
-        return (
-          (allowedTypes.includes(f.type.toLowerCase()) || isZfs || isMnt) &&
-          !isNoise &&
-          f.size > 0
-        );
+        // Exclude boot-pool as requested
+        if (f.fs.startsWith("boot-pool")) return false;
+
+        // Exclude datasets (contain slashes, e.g. "pool/dataset")
+        // We only want the root pool (e.g. "collab-services", "media")
+        if (f.fs.includes("/")) return false;
+
+        // Must be non-zero size
+        if (f.size <= 0) return false;
+
+        return true;
       });
 
       devices = relevantFs.map((f) => ({
-        device: f.fs, // Shows the dataset name e.g. "pool/dataset"
-        model: f.mount, // Shows the mount point e.g. "/mnt/pool/dataset"
+        device: f.fs, // Pool Name (e.g. "collab-services")
+        model: "ZFS Pool", // Generic Label
         size_gb: f.size / 1024 / 1024 / 1024,
         used_gb: f.used / 1024 / 1024 / 1024,
         available_gb: (f.size - f.used) / 1024 / 1024 / 1024,
         usage_percent: f.use,
-        drive_type: "ssd", // Assume SSD/Fast storage
+        drive_type: "ssd",
         interface_type: "unknown" as any,
         smart_status: "healthy",
         temperature_celsius: 0,
@@ -381,6 +362,7 @@ export class SystemInfoService {
     );
 
     return {
+      is_simulated: true,
       psu_status: ["healthy", "healthy"] as "healthy"[],
       psu_count: 2,
       psu_redundancy: true,
@@ -415,6 +397,7 @@ export class SystemInfoService {
       status: "normal",
       rpm_history: [],
       temperature_correlated: true,
+      is_simulated: true,
     }));
   }
 
@@ -424,9 +407,12 @@ export class SystemInfoService {
   ) {
     // If real temp is 0/null (common on Windows without admin), simulate it
     let pkgTemp = cpuTemp.main || 0;
+    let is_simulated = false;
+
     if (pkgTemp === 0) {
       // Simulate temp: Base 40C + up to 30C based on load + random jitter
       pkgTemp = 40 + (load / 100) * 30 + (Math.random() * 4 - 2);
+      is_simulated = true;
     }
 
     return {
@@ -436,6 +422,7 @@ export class SystemInfoService {
           current_celsius: pkgTemp,
           high_celsius: 85,
           critical_celsius: 100,
+          is_simulated,
         },
       ],
     };
@@ -443,6 +430,7 @@ export class SystemInfoService {
 
   private getMockSecurityMetrics() {
     return {
+      is_simulated: true,
       authentication: {
         failed_ssh_attempts_24h: 0,
         failed_login_attempts_24h: 0,
@@ -472,6 +460,7 @@ export class SystemInfoService {
 
   private getMockEnvironmentMetrics() {
     return {
+      is_simulated: true,
       temperature: {
         ambient_celsius: 22,
         intake_celsius: 24,

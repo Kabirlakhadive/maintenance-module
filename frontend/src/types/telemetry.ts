@@ -3,7 +3,7 @@
 
 export interface ServerMetadata {
   hostname: string;
-  server_type: 'inspur' | 'hp' | 'dell' | 'generic';
+  server_type: "inspur" | "hp" | "dell" | "generic";
   os_distribution: string;
   kernel_version: string;
   uptime_seconds: number;
@@ -61,9 +61,9 @@ export interface StorageDevice {
   used_gb: number;
   available_gb: number;
   usage_percent: number;
-  drive_type: 'ssd' | 'nvme' | 'hdd';
-  interface_type: 'sata' | 'sas' | 'pcie' | 'usb';
-  smart_status: 'healthy' | 'warning' | 'critical';
+  drive_type: "ssd" | "nvme" | "hdd";
+  interface_type: "sata" | "sas" | "pcie" | "usb";
+  smart_status: "healthy" | "warning" | "critical";
   temperature_celsius: number;
   temperature_fluctuation_5min: number;
   power_on_hours: number;
@@ -89,7 +89,7 @@ export interface StorageDevice {
 export interface RAIDArray {
   device: string;
   level: string;
-  status: 'healthy' | 'degraded' | 'rebuilding';
+  status: "healthy" | "degraded" | "rebuilding";
   devices: string[];
   sync_progress: number | null;
 }
@@ -109,7 +109,7 @@ export interface StorageMetrics {
 
 export interface NetworkInterface {
   name: string;
-  status: 'up' | 'down';
+  status: "up" | "down";
   speed_mbps: number;
   duplex: string;
   mtu: number;
@@ -143,6 +143,7 @@ export interface TemperatureSensor {
   current_celsius: number;
   high_celsius: number;
   critical_celsius: number;
+  is_simulated?: boolean;
 }
 
 export interface FanData {
@@ -153,33 +154,35 @@ export interface FanData {
   target_rpm: number;
   speed_fluctuation_5min: number;
   efficiency_percent: number;
-  status: 'normal' | 'warning' | 'critical' | 'failed';
+  status: "normal" | "warning" | "critical" | "failed";
   rpm_history: number[];
   temperature_correlated: boolean;
+  is_simulated?: boolean;
 }
 
 export interface PowerMetrics {
-  psu_status: ('healthy' | 'warning' | 'critical')[];
+  is_simulated?: boolean;
+  psu_status: ("healthy" | "warning" | "critical")[];
   psu_count: number;
   psu_redundancy: boolean;
   power_consumption_watts: number;
   power_consumption_peak_watts: number;
   power_efficiency_percent: number;
   voltage_levels: {
-    '3.3v': number;
-    '5v': number;
-    '12v': number;
-    '3.3v_fluctuation': number;
-    '5v_fluctuation': number;
-    '12v_fluctuation': number;
+    "3.3v": number;
+    "5v": number;
+    "12v": number;
+    "3.3v_fluctuation": number;
+    "5v_fluctuation": number;
+    "12v_fluctuation": number;
   };
-  voltage_stability: 'stable' | 'fluctuating' | 'unstable';
+  voltage_stability: "stable" | "fluctuating" | "unstable";
   ups_status?: {
     connected: boolean;
     battery_charge_percent: number;
     time_remaining_minutes: number;
     on_battery: boolean;
-    battery_health: 'good' | 'degrading' | 'critical';
+    battery_health: "good" | "degrading" | "critical";
     output_voltage: number;
     load_percentage: number;
   };
@@ -187,6 +190,7 @@ export interface PowerMetrics {
 }
 
 export interface EnvironmentalMetrics {
+  is_simulated?: boolean;
   temperature: {
     ambient_celsius: number;
     intake_celsius: number;
@@ -207,13 +211,13 @@ export interface EnvironmentalMetrics {
   chassis: {
     intrusion_detected: boolean;
     case_open_events_today: number;
-    door_status: 'open' | 'closed';
+    door_status: "open" | "closed";
   };
 }
 
 export interface SystemdService {
   name: string;
-  status: 'active' | 'inactive' | 'failed';
+  status: "active" | "inactive" | "failed";
   uptime_seconds: number;
   restart_count: number;
 }
@@ -228,7 +232,7 @@ export interface WebService {
 }
 
 export interface DatabaseService {
-  type: 'postgresql' | 'mysql' | 'mongodb' | 'redis';
+  type: "postgresql" | "mysql" | "mongodb" | "redis";
   version: string;
   connections: {
     active: number;
@@ -251,6 +255,7 @@ export interface ServiceMetrics {
 }
 
 export interface SecurityMetrics {
+  is_simulated?: boolean;
   authentication: {
     failed_ssh_attempts_24h: number;
     failed_login_attempts_24h: number;
@@ -259,7 +264,7 @@ export interface SecurityMetrics {
     last_password_change: string;
   };
   firewall: {
-    status: 'active' | 'inactive';
+    status: "active" | "inactive";
     rules_count: number;
     blocked_connections_24h: number;
     recent_changes: Array<{
@@ -285,7 +290,7 @@ export interface Alert {
   id: string;
   hostname: string;
   alert_type: string;
-  severity: 'info' | 'warning' | 'critical';
+  severity: "info" | "warning" | "critical";
   title: string;
   description: string;
   timestamp: string;
@@ -333,7 +338,7 @@ export interface TelemetryData {
 
 export interface ServerStatus {
   hostname: string;
-  status: 'healthy' | 'warning' | 'critical';
+  status: "healthy" | "warning" | "critical";
   server_type: string;
   os_distribution: string;
   hardware: HardwareHealth;
