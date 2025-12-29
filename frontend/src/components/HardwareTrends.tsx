@@ -131,12 +131,12 @@ export const HardwareTrends: React.FC = () => {
       axisLabel: { formatter: "{value}%" },
       splitLine: { lineStyle: { type: "dashed" } },
     },
+    animation: false,
     series: [
       {
         type: "line",
         smooth: true,
-        symbol: "circle",
-        symbolSize: 4,
+        symbol: "none",
         lineStyle: { width: 2, color: "#1890ff" },
         areaStyle: {
           color: {
