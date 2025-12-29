@@ -12,10 +12,28 @@ import {
   TelemetryData,
 } from "../types/telemetry";
 
+import { TrueNASConnector } from "./TrueNASConnector";
+
 export class SystemInfoService {
   private static instance: SystemInfoService;
+  private trueNASConnector: TrueNASConnector | null = null;
 
-  private constructor() {}
+  private constructor() {
+    // Initialize TrueNAS connector if env vars are present
+    // For MVP, we are using the hardcoded token provided during research
+    const truenasHost = process.env.TRUENAS_HOST || "vvault-rnd.local:8443";
+    const truenasToken =
+      process.env.TRUENAS_TOKEN ||
+      "jM-xT4E8Vy65LUUIe6U45rMOgVUIf9hEAwzEqts6BuC2Vo611S9x-uRrynxBEppp";
+
+    if (truenasHost && truenasToken) {
+      this.trueNASConnector = new TrueNASConnector({
+        host: truenasHost,
+        token: truenasToken,
+      });
+      this.trueNASConnector.connect();
+    }
+  }
 
   public static getInstance(): SystemInfoService {
     if (!SystemInfoService.instance) {
@@ -49,18 +67,17 @@ export class SystemInfoService {
       si.time(),
     ]);
 
-    const hardware: HardwareHealth = {
+    let hardware: HardwareHealth = {
       cpu: this.mapCpuMetrics(cpu, currentLoad, cpuTemp),
       memory: this.mapMemoryMetrics(mem),
       storage: this.mapStorageMetrics(fsSize, diskLayout),
       network: this.mapNetworkMetrics(networkStats, networkInterfaces),
-      power: this.getMockPowerMetrics(currentLoad.currentLoad), // Mock based on load
+      power: this.getMockPowerMetrics(currentLoad.currentLoad),
       temperature: this.getMockTemperatureMetrics(
         cpuTemp,
         currentLoad.currentLoad
-      ), // Simulate if missing
+      ),
       services: {
-        // These will be populated by Docker service or basic systemd check
         systemd_services: {
           total_services: 0,
           active_services: 0,
@@ -70,8 +87,28 @@ export class SystemInfoService {
         web_services: [],
         database_services: [],
       },
-      security: this.getMockSecurityMetrics(), // Difficult to get real security metrics without root/auditing
+      security: this.getMockSecurityMetrics(),
     };
+
+    // MERGE TRUENAS DATA IF AVAILABLE
+    if (this.trueNASConnector) {
+      const realMetrics = this.trueNASConnector.getMetrics();
+
+      if (
+        realMetrics.cpu &&
+        realMetrics.cpu.utilization_percent !== undefined
+      ) {
+        hardware.cpu = { ...hardware.cpu, ...realMetrics.cpu };
+      }
+
+      if (realMetrics.memory && realMetrics.memory.total_gb > 0) {
+        hardware.memory = { ...hardware.memory, ...realMetrics.memory };
+      }
+
+      if (realMetrics.network && realMetrics.network.interfaces.length > 0) {
+        hardware.network = { ...hardware.network, ...realMetrics.network };
+      }
+    }
 
     // Try to read host OS info if mounted
     let hostOsName = `${osInfo.distro} ${osInfo.release}`;
@@ -85,7 +122,7 @@ export class SystemInfoService {
         }
       }
     } catch (e) {
-      // failed to read host os-release, fallback to container's
+      // failed
     }
 
     const meta: ServerMetadata = {
