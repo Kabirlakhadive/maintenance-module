@@ -162,39 +162,76 @@ export class SystemInfoService {
     fs: si.Systeminformation.FsSizeData[],
     disks: si.Systeminformation.DiskLayoutData[]
   ): StorageMetrics {
-    const devices: StorageDevice[] = disks.map((disk, index) => {
-      // Heuristic for Windows: if devices[0], assume it contains C: (or use first available fs)
-      // Real mapping requires matching mount points or device names
-      let fsInfo = fs.find(
-        (f) =>
-          f.fs.startsWith(disk.device) ||
-          (disk.device && f.fs.includes(disk.device))
-      );
+    let devices: StorageDevice[] = [];
 
-      // Fallback: If no match and it's the first disk, try connecting it to 'C:' or '/'
-      if (!fsInfo && index === 0) {
-        fsInfo = fs.find((f) => f.fs === "C:" || f.mount === "/");
-      }
+    if (disks && disks.length > 0) {
+      devices = disks.map((disk, index) => {
+        // Heuristic for Windows: if devices[0], assume it contains C: (or use first available fs)
+        // Real mapping requires matching mount points or device names
+        let fsInfo = fs.find(
+          (f) =>
+            f.fs.startsWith(disk.device) ||
+            (disk.device && f.fs.includes(disk.device))
+        );
 
-      // If still no match, just take the first one or default
-      if (!fsInfo && fs.length > 0 && index === 0) {
-        fsInfo = fs[0];
-      }
+        // Fallback: If no match and it's the first disk, try connecting it to 'C:' or '/'
+        if (!fsInfo && index === 0) {
+          fsInfo = fs.find((f) => f.fs === "C:" || f.mount === "/");
+        }
 
-      const size_gb = disk.size / 1024 / 1024 / 1024;
-      const used_gb = fsInfo ? fsInfo.used / 1024 / 1024 / 1024 : 0;
+        // If still no match, just take the first one or default
+        if (!fsInfo && fs.length > 0 && index === 0) {
+          fsInfo = fs[0];
+        }
 
-      return {
-        device: disk.device,
-        model: disk.name,
-        size_gb,
-        used_gb,
-        available_gb: size_gb - used_gb,
-        usage_percent: size_gb > 0 ? (used_gb / size_gb) * 100 : 0,
-        drive_type: disk.type === "SSD" ? "ssd" : "hdd", // Simplified
-        interface_type: (disk.interfaceType.toLowerCase() as any) || "sata",
-        smart_status: disk.smartStatus === "Ok" ? "healthy" : "warning",
-        temperature_celsius: 0, // Requires smartctl or sensor
+        const size_gb = disk.size / 1024 / 1024 / 1024;
+        const used_gb = fsInfo ? fsInfo.used / 1024 / 1024 / 1024 : 0;
+
+        return {
+          device: disk.device,
+          model: disk.name,
+          size_gb,
+          used_gb,
+          available_gb: size_gb - used_gb,
+          usage_percent: size_gb > 0 ? (used_gb / size_gb) * 100 : 0,
+          drive_type: disk.type === "SSD" ? "ssd" : "hdd", // Simplified
+          interface_type: (disk.interfaceType.toLowerCase() as any) || "sata",
+          smart_status: disk.smartStatus === "Ok" ? "healthy" : "warning",
+          temperature_celsius: 0, // Requires smartctl or sensor
+          temperature_fluctuation_5min: 0,
+          power_on_hours: 0,
+          power_cycles: 0,
+          wear_level_percent: 0,
+          tbw_written: 0,
+          tbw_total: 0,
+          tbw_percentage: 0,
+          read_bytes_total: 0,
+          write_bytes_total: 0,
+          read_iops_peak: 0,
+          write_iops_peak: 0,
+          read_throughput_peak_mbps: 0,
+          write_throughput_peak_mbps: 0,
+          current_read_iops: 0,
+          current_write_iops: 0,
+          current_read_throughput_mbps: 0,
+          current_write_throughput_mbps: 0,
+          serial_number: disk.serialNum,
+          firmware_version: disk.firmwareRevision,
+        };
+      });
+    } else {
+      // Fallback: If no physical disks found (e.g. Docker container), map FileSystems as devices
+      devices = fs.map((f) => ({
+        device: f.mount,
+        model: `Filesystem (${f.fs})`,
+        size_gb: f.size / 1024 / 1024 / 1024,
+        used_gb: f.used / 1024 / 1024 / 1024,
+        available_gb: (f.size - f.used) / 1024 / 1024 / 1024,
+        usage_percent: f.use,
+        drive_type: "ssd", // Assume SSD for virtual/container storage
+        interface_type: "unknown" as any,
+        smart_status: "healthy",
+        temperature_celsius: 0,
         temperature_fluctuation_5min: 0,
         power_on_hours: 0,
         power_cycles: 0,
@@ -212,10 +249,10 @@ export class SystemInfoService {
         current_write_iops: 0,
         current_read_throughput_mbps: 0,
         current_write_throughput_mbps: 0,
-        serial_number: disk.serialNum,
-        firmware_version: disk.firmwareRevision,
-      };
-    });
+        serial_number: "virtual",
+        firmware_version: "1.0",
+      }));
+    }
 
     return {
       devices,
