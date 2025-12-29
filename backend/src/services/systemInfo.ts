@@ -20,13 +20,11 @@ export class SystemInfoService {
   private trueNASConnector: TrueNASConnector | null = null;
 
   // Cache current metrics
-  private currentMetrics: { meta: ServerMetadata; data: TelemetryData } | null =
-    null;
+  private currentMetrics: TelemetryData | null = null;
   private isCollecting: boolean = false;
 
   private constructor() {
     // Initialize TrueNAS connector if env vars are present
-    // For MVP, we are using the hardcoded token provided during research
     const truenasHost = process.env.TRUENAS_HOST || "vvault-rnd.local:8443";
     const truenasToken =
       process.env.TRUENAS_TOKEN ||
@@ -42,6 +40,80 @@ export class SystemInfoService {
 
     // Start background collection loop
     this.startCollectionLoop();
+  }
+
+  public static getInstance(): SystemInfoService {
+    if (!SystemInfoService.instance) {
+      SystemInfoService.instance = new SystemInfoService();
+    }
+    return SystemInfoService.instance;
+  }
+
+  // Store last 60 minutes of trends (3600 points)
+  private trendHistory: Record<string, { timestamp: string; value: number }[]> =
+    {
+      cpu: [],
+      memory: [],
+      disk: [],
+      network: [],
+    };
+
+  private updateTrendHistory(metrics: TelemetryData) {
+    const timestamp = new Date().toISOString();
+    const MAX_HISTORY = 3600;
+
+    const pushData = (key: string, value: number) => {
+      this.trendHistory[key].push({ timestamp, value });
+      if (this.trendHistory[key].length > MAX_HISTORY) {
+        this.trendHistory[key].shift();
+      }
+    };
+
+    pushData("cpu", metrics.data.hardware.cpu.utilization_percent);
+    pushData("memory", metrics.data.hardware.memory.usage_percent);
+    pushData(
+      "disk",
+      metrics.data.hardware.storage.devices[0]?.usage_percent || 0
+    );
+
+    const netSpeed =
+      (metrics.data.hardware.network.interfaces[0]?.rx_bytes_per_sec || 0) /
+      1024 /
+      1024;
+    pushData("network", netSpeed);
+  }
+
+  public getTrends(): Record<string, TrendData> {
+    const formatTrend = (
+      metric: string,
+      unit: string,
+      key: string
+    ): TrendData => {
+      const history = this.trendHistory[key];
+      const current =
+        history.length > 0 ? history[history.length - 1].value : 0;
+      const values = history.map((h) => h.value);
+
+      return {
+        metric,
+        unit,
+        data: history,
+        current,
+        average:
+          values.length > 0
+            ? values.reduce((a, b) => a + b, 0) / values.length
+            : 0,
+        min: values.length > 0 ? Math.min(...values) : 0,
+        max: values.length > 0 ? Math.max(...values) : 0,
+      };
+    };
+
+    return {
+      cpu: formatTrend("CPU Utilization", "%", "cpu"),
+      memory: formatTrend("Memory Usage", "%", "memory"),
+      disk: formatTrend("Disk Usage", "%", "disk"),
+      network: formatTrend("Network Traffic", "MB/s", "network"),
+    };
   }
 
   private startCollectionLoop() {
