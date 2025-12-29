@@ -43,8 +43,8 @@ export const useMockData = () => {
   useEffect(() => {
     fetchData();
 
-    // Auto-refresh every 5 seconds
-    const interval = setInterval(fetchData, 5000);
+    // Auto-refresh every 1 second
+    const interval = setInterval(fetchData, 1000);
 
     return () => clearInterval(interval);
   }, [fetchData]);
