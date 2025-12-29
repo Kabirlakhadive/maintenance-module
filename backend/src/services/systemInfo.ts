@@ -258,6 +258,16 @@ export class SystemInfoService {
 
       // Try to read host OS info if mounted
       let hostOsName = `${osInfo.distro} ${osInfo.release}`;
+      let realHostname = osInfo.hostname;
+
+      // Use TrueNAS hostname if available
+      if (this.trueNASConnector) {
+        const tnHostname = this.trueNASConnector.getHostname();
+        if (tnHostname) {
+          realHostname = tnHostname;
+        }
+      }
+
       try {
         const fs = require("fs");
         if (fs.existsSync("/host/etc/os-release")) {
@@ -272,7 +282,7 @@ export class SystemInfoService {
       }
 
       const meta: ServerMetadata = {
-        hostname: osInfo.hostname,
+        hostname: realHostname,
         server_type: "generic",
         os_distribution: hostOsName,
         kernel_version: osInfo.kernel,

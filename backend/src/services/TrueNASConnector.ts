@@ -20,6 +20,7 @@ export class TrueNASConnector {
   private isConnected: boolean = false;
   private latestMetrics: Partial<HardwareHealth> = {};
   private reconnectInterval: NodeJS.Timeout | null = null;
+  private hostname: string | null = null;
 
   // Track subscription state
   private isAuthenticated: boolean = false;
@@ -62,7 +63,7 @@ export class TrueNASConnector {
 
     // 2. Authenticate
     this.send({
-      id: this.generateId(),
+      id: "auth_request",
       msg: "method",
       method: "auth.login_with_token",
       params: [this.token],
@@ -73,12 +74,27 @@ export class TrueNASConnector {
     try {
       const msg = JSON.parse(data.toString());
 
-      if (msg.msg === "result" && msg.result === true) {
-        // Likely auth success or sub success
-        if (!this.isAuthenticated) {
-          console.log("TrueNAS Auth Successful (Presumed)");
+      if (msg.msg === "result") {
+        // Handle Auth Result
+        if (msg.id === "auth_request" && msg.result === true) {
+          console.log("TrueNAS Auth Successful");
           this.isAuthenticated = true;
+
+          // Fetch System Info (Hostname)
+          this.send({
+            id: "sys_info_request",
+            msg: "method",
+            method: "system.info",
+            params: [],
+          });
+
           this.subscribeToMetrics();
+        }
+
+        // Handle System Info Result
+        if (msg.id === "sys_info_request" && msg.result) {
+          this.hostname = msg.result.hostname;
+          console.log("TrueNAS Hostname identified:", this.hostname);
         }
       }
 
@@ -95,6 +111,10 @@ export class TrueNASConnector {
     } catch (e) {
       console.error("Error parsing TrueNAS WS message", e);
     }
+  }
+
+  public getHostname(): string | null {
+    return this.hostname;
   }
 
   private subscribeToMetrics() {
