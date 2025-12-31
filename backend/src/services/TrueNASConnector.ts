@@ -40,7 +40,8 @@ export class TrueNASConnector {
       this.ws.close();
     }
 
-    const url = `wss://${this.host}/websocket`;
+    const protocol = process.env.TRUENAS_PROTOCOL || "ws";
+    const url = `${protocol}://${this.host}/websocket`;
     console.log(`Connecting to TrueNAS WebSocket: ${url}`);
 
     // Reject Unauthorized is false because TrueNAS often uses self-signed certs
