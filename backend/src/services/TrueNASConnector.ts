@@ -244,7 +244,27 @@ export class TrueNASConnector {
 
   private mapCPU(cpuData: any[], tempData: any): CPUMetrics {
     // cpuData: [{user, system, idle...}, ...]
-    if (!cpuData || cpuData.length === 0) return {} as any;
+    if (!cpuData || !Array.isArray(cpuData) || cpuData.length === 0)
+      return {
+        utilization_percent: 0,
+        per_core_utilization: [],
+        load_average: [0, 0, 0],
+        core_count: 0,
+        physical_core_count: 0,
+        frequency_mhz: { base: 0, current: 0, turbo_active: false },
+        temperature_celsius: { package: 0, cores: [] },
+        thermal_throttling_events: 0,
+        power_consumption_watts: 0,
+        times_percent: {
+          user: 0,
+          system: 0,
+          idle: 0,
+          nice: 0,
+          iowait: 0,
+          irq: 0,
+          softirq: 0,
+        },
+      };
 
     const cores = cpuData.map((c) => {
       const idle = c.idle || 0;

@@ -701,9 +701,10 @@ export const HardwareTrends: React.FC = () => {
                               <ThunderboltOutlined
                                 style={{ color: "#1890ff" }}
                               />{" "}
-                              {server.hardware.power.power_consumption_watts.toFixed(
-                                1
-                              )}
+                              {(
+                                server.hardware.power.power_consumption_watts ||
+                                0
+                              ).toFixed(1)}
                               W
                               <Text
                                 type="secondary"
