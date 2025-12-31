@@ -25,7 +25,7 @@ export class SystemInfoService {
 
   private constructor() {
     // Initialize TrueNAS connector if env vars are present
-    const truenasHost = process.env.TRUENAS_HOST || "vvault-rnd.local:8443";
+    const truenasHost = process.env.TRUENAS_HOST || "vv-lf-1.local";
     const truenasToken =
       process.env.TRUENAS_TOKEN ||
       "jM-xT4E8Vy65LUUIe6U45rMOgVUIf9hEAwzEqts6BuC2Vo611S9x-uRrynxBEppp";

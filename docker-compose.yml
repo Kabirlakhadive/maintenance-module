@@ -16,6 +16,8 @@ services:
       - HOST_SYS=/host/sys
       - PORT=4000
       - SERVER_HOSTNAME=TrueNAS Scale # Fallback/Override Name
+      - TRUENAS_HOST=vv-lf-1.local # Set your TrueNAS IP/Hostname here
+      # - TRUENAS_TOKEN=your_api_token_here
     networks:
       - monitor-net
 
