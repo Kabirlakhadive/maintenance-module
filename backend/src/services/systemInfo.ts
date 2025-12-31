@@ -181,6 +181,7 @@ export class SystemInfoService {
       // MERGE TRUENAS DATA IF AVAILABLE - SELECTIVE MERGE
       if (this.trueNASConnector) {
         const realMetrics = this.trueNASConnector.getMetrics();
+        const envMetrics = this.trueNASConnector.getEnvironment();
 
         // 1. CPU MERGE
         if (
@@ -254,6 +255,19 @@ export class SystemInfoService {
 
           hardware.network.interfaces = mergedInterfaces;
         }
+
+        // 4. POWER MERGE (IPMI)
+        if (realMetrics.power && !realMetrics.power.is_simulated) {
+          hardware.power = realMetrics.power as any;
+        }
+
+        // 5. SECURITY MERGE (IPMI context)
+        if (realMetrics.security) {
+          hardware.security = {
+            ...hardware.security,
+            ...(realMetrics.security as any),
+          };
+        }
       }
 
       // Try to read host OS info if mounted
@@ -315,7 +329,12 @@ export class SystemInfoService {
         },
         services: hardware.services,
         security: hardware.security,
-        environment: this.getMockEnvironmentMetrics(),
+        environment:
+          this.trueNASConnector &&
+          this.trueNASConnector.getEnvironment() &&
+          !this.trueNASConnector.getEnvironment().is_simulated
+            ? this.trueNASConnector.getEnvironment()
+            : this.getMockEnvironmentMetrics(),
         alerts: [],
       };
 

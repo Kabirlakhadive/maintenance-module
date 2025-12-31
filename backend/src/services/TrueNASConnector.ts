@@ -19,7 +19,11 @@ export class TrueNASConnector {
   private token: string;
   private isConnected: boolean = false;
   private latestMetrics: Partial<HardwareHealth> = {};
+  private latestEnvironment: any = {};
   private reconnectInterval: NodeJS.Timeout | null = null;
+  private ipmiInterval: NodeJS.Timeout | null = null;
+  private ipmiSensors: any[] = [];
+  private ipmiChassis: any = {};
   private hostname: string | null = null;
 
   // Track subscription state
@@ -89,12 +93,25 @@ export class TrueNASConnector {
           });
 
           this.subscribeToMetrics();
+          this.startIPMIPolling();
         }
 
         // Handle System Info Result
         if (msg.id === "sys_info_request" && msg.result) {
           this.hostname = msg.result.hostname;
           console.log("TrueNAS Hostname identified:", this.hostname);
+        }
+
+        // Handle IPMI Chassis Info
+        if (msg.id && msg.id.startsWith("ipmi_chassis_") && msg.result) {
+          this.ipmiChassis = msg.result;
+          this.mergeIPMIData();
+        }
+
+        // Handle IPMI Sensors
+        if (msg.id && msg.id.startsWith("ipmi_sensors_") && msg.result) {
+          this.ipmiSensors = msg.result;
+          this.mergeIPMIData();
         }
       }
 
@@ -126,10 +143,42 @@ export class TrueNASConnector {
     });
   }
 
+  private startIPMIPolling() {
+    if (this.ipmiInterval) clearInterval(this.ipmiInterval);
+    // Poll IPMI every 15 seconds
+    this.ipmiInterval = setInterval(() => this.pollIPMI(), 15000);
+    this.pollIPMI(); // Initial poll
+  }
+
+  private stopIPMIPolling() {
+    if (this.ipmiInterval) clearInterval(this.ipmiInterval);
+  }
+
+  private pollIPMI() {
+    if (!this.isAuthenticated) return;
+
+    // Chassis Info
+    this.send({
+      id: "ipmi_chassis_" + this.generateId(),
+      msg: "method",
+      method: "ipmi.chassis.info",
+      params: [],
+    });
+
+    // Sensors
+    this.send({
+      id: "ipmi_sensors_" + this.generateId(),
+      msg: "method",
+      method: "ipmi.sensors.query",
+      params: [],
+    });
+  }
+
   private onClose() {
     console.log("TrueNAS WS Closed. Reconnecting in 5s...");
     this.isConnected = false;
     this.isAuthenticated = false;
+    this.stopIPMIPolling();
     setTimeout(() => this.connect(), 5000);
   }
 
@@ -158,10 +207,10 @@ export class TrueNASConnector {
     const netMetrics = this.mapNetwork(fields.interfaces);
 
     this.latestMetrics = {
+      ...this.latestMetrics, // Keep IPMI data
       cpu: cpuMetrics,
       memory: memMetrics,
       network: netMetrics,
-      // Keep existing simulated data for power/fan if not present in realtime
     };
   }
 
@@ -267,7 +316,147 @@ export class TrueNASConnector {
     };
   }
 
+  private mergeIPMIData() {
+    // Map IPMI data to HardwareHealth structure
+    // We strictly use IPMI for: Power, Environment (Fans, Temp), and Chassis Security
+
+    const powerMetrics = this.mapIPMIPower(this.ipmiSensors, this.ipmiChassis);
+    const envMetrics = this.mapIPMIEnvironment(
+      this.ipmiSensors,
+      this.ipmiChassis
+    );
+    const securityMetrics = this.mapIPMISecurity(this.ipmiChassis);
+
+    // Update latestMetrics with new IPMI info
+    this.latestMetrics = {
+      ...this.latestMetrics,
+      power: powerMetrics,
+      security: {
+        ...(this.latestMetrics.security as any),
+        ...securityMetrics,
+      } as any,
+    };
+
+    this.latestEnvironment = envMetrics;
+  }
+
+  private mapIPMIPower(sensors: any[], chassis: any): any {
+    // Look for Power consumption and Voltages
+    // Sensor examples: "Pwr Consumption", "PS1 Status", "12V", "5V"
+
+    let power_watts = 0;
+    const voltage_levels: any = {
+      "3.3v": 0,
+      "5v": 0,
+      "12v": 0,
+    };
+
+    sensors.forEach((s) => {
+      const name = s.name.toLowerCase();
+      // Power
+      if (name.includes("pwr consumption") || name.includes("system power")) {
+        power_watts = s.value;
+      }
+
+      // Voltages
+      if (name.includes("3.3v") && !name.includes("batt"))
+        voltage_levels["3.3v"] = s.value;
+      if (name.includes("5v") && !name.includes("dual"))
+        voltage_levels["5v"] = s.value;
+      if (name.includes("12v")) voltage_levels["12v"] = s.value;
+    });
+
+    const psu_status = [];
+    if (chassis.power_fault === "true") psu_status.push("fault");
+    else psu_status.push("healthy");
+
+    return {
+      is_simulated: false,
+      psu_status: psu_status,
+      psu_count: 1, // hard to detect count without specific sensors
+      power_consumption_watts: power_watts,
+      power_consumption_peak_watts: 0, // Need history for this
+      power_efficiency_percent: 90, // Assumption
+      voltage_levels: {
+        ...voltage_levels,
+        "3.3v_fluctuation": 0,
+        "5v_fluctuation": 0,
+        "12v_fluctuation": 0,
+      },
+      voltage_stability: "stable",
+    };
+  }
+
+  private mapIPMIEnvironment(sensors: any[], chassis: any): any {
+    const fans: any = {
+      cpu_fans: [],
+      case_fans: [],
+    };
+
+    // Fans
+    sensors.forEach((s) => {
+      if (s.type === "Fan" || s.units === "RPM") {
+        const fanData = {
+          label: s.name,
+          current_rpm: s.value,
+          max_rpm: 0, // Unknown
+          status: s.value > 0 ? "normal" : "stopped",
+          is_simulated: false,
+        };
+
+        if (s.name.toLowerCase().includes("cpu")) {
+          fans.cpu_fans.push(fanData);
+        } else {
+          fans.case_fans.push(fanData);
+        }
+      }
+    });
+
+    // Temperatures (Intake/Exhaust if available)
+    let ambient = 0;
+    let intake = 0;
+    let exhaust = 0;
+
+    sensors.forEach((s) => {
+      const name = s.name.toLowerCase();
+      if (s.type === "Temperature" || s.units === "C") {
+        if (name.includes("inlet") || name.includes("intake")) intake = s.value;
+        if (name.includes("exhaust")) exhaust = s.value;
+        if (name.includes("ambient") || name.includes("system temp"))
+          ambient = s.value;
+      }
+    });
+
+    return {
+      is_simulated: false,
+      temperature: {
+        ambient_celsius: ambient || 22, // Fallback if 0
+        intake_celsius: intake,
+        exhaust_celsius: exhaust,
+      },
+      cooling: {
+        fans: [...fans.cpu_fans, ...fans.case_fans], // Combined or structure matches types
+      },
+      chassis: {
+        intrusion_detected: chassis.chassis_intrusion === "active",
+        door_status: chassis.chassis_intrusion === "active" ? "open" : "closed",
+      },
+    };
+  }
+
+  private mapIPMISecurity(chassis: any): any {
+    return {
+      is_simulated: false,
+      // We can only really map intrusion here
+      // other security metrics (login attempts) are OS level, not IPMI
+    };
+  }
+
   public getMetrics(): Partial<HardwareHealth> {
     return this.latestMetrics;
+  }
+
+  public getEnvironment(): any {
+    return this.latestEnvironment;
   }
 }
