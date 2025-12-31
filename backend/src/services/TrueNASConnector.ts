@@ -405,6 +405,31 @@ export class TrueNASConnector {
       } as any,
     };
 
+    // Backfill CPU Temperature from IPMI if realtime stream is missing it
+    if (
+      this.latestMetrics.cpu &&
+      this.latestMetrics.cpu.temperature_celsius.package === 0
+    ) {
+      // Collect CPU temps from IPMI sensors
+      const cpuTemps = (this.ipmiSensors || [])
+        .filter(
+          (s) =>
+            s.name.toLowerCase().includes("cpu") &&
+            s.name.toLowerCase().includes("temp") &&
+            s.type === "Temperature"
+        )
+        .map((s) => (s.reading === "N/A" ? 0 : parseFloat(s.reading)))
+        .filter((v) => v > 0);
+
+      if (cpuTemps.length > 0) {
+        const maxTemp = Math.max(...cpuTemps);
+        this.latestMetrics.cpu.temperature_celsius = {
+          package: maxTemp,
+          cores: cpuTemps,
+        };
+      }
+    }
+
     this.latestEnvironment = envMetrics;
   }
 
