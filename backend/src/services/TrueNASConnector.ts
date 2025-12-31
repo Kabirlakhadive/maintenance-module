@@ -234,6 +234,27 @@ export class TrueNASConnector {
     // 3. Network
     const netMetrics = this.mapNetwork(fields.interfaces);
 
+    // Consistency Fix: Ensure IPMI temperature persists if Realtime stream sends 0
+    if (cpuMetrics.temperature_celsius.package === 0 && this.ipmiSensors) {
+      const cpuTemps = this.ipmiSensors
+        .filter(
+          (s) =>
+            s.name.toLowerCase().includes("cpu") &&
+            s.name.toLowerCase().includes("temp") &&
+            s.type === "Temperature"
+        )
+        .map((s) => (s.reading === "N/A" ? 0 : parseFloat(s.reading)))
+        .filter((v) => v > 0);
+
+      if (cpuTemps.length > 0) {
+        const maxTemp = Math.max(...cpuTemps);
+        cpuMetrics.temperature_celsius = {
+          package: maxTemp,
+          cores: cpuTemps,
+        };
+      }
+    }
+
     this.latestMetrics = {
       ...this.latestMetrics, // Keep IPMI data
       cpu: cpuMetrics,
