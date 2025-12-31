@@ -429,58 +429,70 @@ export class TrueNASConnector {
 
     sensors.forEach((s) => {
       const name = s.name.toLowerCase();
+      // Parse reading (handle "N/A")
+      let val = 0;
+      if (s.reading !== "N/A") {
+        val = parseFloat(s.reading);
+      }
+
       // Power
       if (
         name.includes("pwr consumption") ||
         name.includes("system power") ||
         name.includes("total_power")
       ) {
-        power_watts = s.value;
+        power_watts = val;
       }
 
       // Voltages
       if (name.includes("3.3v") && !name.includes("batt"))
-        voltage_levels["3.3v"] = s.value;
+        voltage_levels["3.3v"] = val;
       if (name.includes("5v") && !name.includes("dual"))
-        voltage_levels["5v"] = s.value;
-      if (name.includes("12v")) voltage_levels["12v"] = s.value;
+        voltage_levels["5v"] = val;
+      if (name.includes("12v")) voltage_levels["12v"] = val;
 
       // PSU Status
+      // Logic: If PSU*_Supply status is present, use it.
+      // If not, use PSU*_Power reading to infer status.
+      if (name.includes("psu") && name.includes("power")) {
+        // e.g. PSU1_Power=235.00 -> Healthy
+        // PSU0_Power=N/A -> Critical/Missing
+        if (s.reading === "N/A" || val === 0) {
+          // Likely missing or off
+          // We won't push to psu_status here directly to avoid duplicates if Supply sensor also exists,
+          // But if we have no status yet for this PSU index...
+          // Let's rely on a simpler approach: accumulate PSU status logic.
+        } else {
+          // Has power -> Healthy
+        }
+      }
+
+      // We explicitly check for Supply/Status sensors first
       if (
         name.includes("psu") &&
         (name.includes("status") || name.includes("supply"))
       ) {
-        // If "ok" (0x00? or string), mark healthy.
-        // TrueNAS IPMI often returns string values if parsed, or numbers.
-        // Assuming raw value checking might be needed, but 's.value' is likely parsed.
-        // Based on user output: "Presence detected" or "Presence detected, Power Supply AC lost"
-        // If it's a string from middleware:
-        const val = String(s.value || "").toLowerCase();
-        if (
-          val.includes("ac lost") ||
-          val.includes("failure") ||
-          val.includes("error")
-        ) {
-          psu_status.push("critical");
-        } else if (
-          val.includes("presence detected") ||
-          val === "ok" ||
-          s.value === 1
-        ) {
+        psu_count++;
+        const statusVal = String(s.reading || "").toLowerCase();
+        if (statusVal === "n/a") {
+          psu_status.push("critical"); // Or unknown
+        } else if (statusVal.includes("ok") || statusVal.includes("presence")) {
           psu_status.push("healthy");
         } else {
-          psu_status.push("warning");
+          psu_status.push("critical");
         }
-        psu_count++;
       }
+      // Fallback: If we have PSU*_Power sensors but NO status sensors found (count still 0 at end?)
+      // Actually, let's just use the Power reading for "Healthy" if we haven't found status.
 
       // Fans (Backward compatibility for PowerMetrics)
-      if (s.type === "Fan" || s.units === "RPM") {
+      // Check for FAN_X pattern or "Fan" type
+      if (s.type === "Fan" || s.units === "RPM" || name.startsWith("fan_")) {
         const fanData = {
           label: s.name,
-          current_rpm: s.value,
+          current_rpm: val,
           max_rpm: 0,
-          status: s.value > 0 ? "normal" : "stopped",
+          status: val > 0 ? "normal" : "stopped",
           is_simulated: false,
         };
 
@@ -491,6 +503,26 @@ export class TrueNASConnector {
         }
       }
     });
+
+    // Post-processing for PSUs if only Power sensors were found?
+    // User logs show: PSU0_Power=N/A, PSU1_Power=235.00. PSU0_Supply=N/A.
+    // If PSU0_Supply=N/A, we pushed generic "critical" above?
+    // Let's refine PSU logic.
+    // If psu_status is empty or all "critical" because of N/A, maybe look at Power vals.
+    if (psu_status.length === 0 || psu_status.every((s) => s === "critical")) {
+      // Try to derive from Power watts
+      sensors.forEach((s) => {
+        if (
+          s.name.toLowerCase().includes("psu") &&
+          s.name.toLowerCase().includes("power")
+        ) {
+          const v = s.reading === "N/A" ? 0 : parseFloat(s.reading);
+          if (v > 0) psu_status.push("healthy");
+          else psu_status.push("critical");
+        }
+      });
+      if (psu_status.length > 0) psu_count = psu_status.length;
+    }
 
     // Fallback if no specific PSU sensors found but chassis reports simple status
     if (psu_status.length === 0) {
@@ -528,16 +560,19 @@ export class TrueNASConnector {
 
     // Fans
     sensors.forEach((s) => {
-      if (s.type === "Fan" || s.units === "RPM") {
+      const name = s.name.toLowerCase();
+      // Fan checks
+      if (s.type === "Fan" || s.units === "RPM" || name.startsWith("fan_")) {
+        const val = s.reading === "N/A" ? 0 : parseFloat(s.reading);
         const fanData = {
           label: s.name,
-          current_rpm: s.value,
+          current_rpm: val,
           max_rpm: 0, // Unknown
-          status: s.value > 0 ? "normal" : "stopped",
+          status: val > 0 ? "normal" : "stopped",
           is_simulated: false,
         };
 
-        if (s.name.toLowerCase().includes("cpu")) {
+        if (name.includes("cpu")) {
           fans.cpu_fans.push(fanData);
         } else {
           fans.case_fans.push(fanData);
