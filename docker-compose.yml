@@ -18,7 +18,7 @@ services:
       - SERVER_HOSTNAME=TrueNAS Scale # Fallback/Override Name
       - TRUENAS_HOST=192.168.24.88:8443 # Configured TrueNAS IP and Port
       - TRUENAS_PROTOCOL=wss # ws for HTTP, wss for HTTPS
-      # - TRUENAS_TOKEN=your_api_token_here
+      - TRUENAS_TOKEN=Paste_Your_New_API_Key_Here
       # - TRUENAS_TOKEN=your_api_token_here
     networks:
       - monitor-net
