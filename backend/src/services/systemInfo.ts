@@ -25,7 +25,8 @@ export class SystemInfoService {
 
   private constructor() {
     // Initialize TrueNAS connector if env vars are present
-    const truenasHost = process.env.TRUENAS_HOST || "192.168.24.88";
+    const truenasHost = process.env.TRUENAS_HOST || "192.168.24.88:8443";
+    // Protocol is handled inside TrueNASConnector or could be passed here, but ENV is primary.
     const truenasToken =
       process.env.TRUENAS_TOKEN ||
       "jM-xT4E8Vy65LUUIe6U45rMOgVUIf9hEAwzEqts6BuC2Vo611S9x-uRrynxBEppp";
