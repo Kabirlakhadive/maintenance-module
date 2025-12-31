@@ -67,11 +67,30 @@ export class TrueNASConnector {
     });
 
     // 2. Authenticate
+    let authMethod = "auth.login_with_api_key";
+    let authParams: any[] = [this.token];
+
+    // Attempt to detect if token is Base64 encoded "user:password"
+    try {
+      const decoded = Buffer.from(this.token, "base64").toString("utf-8");
+      if (decoded.includes(":") && !this.token.startsWith("1-")) {
+        const [user, ...passParts] = decoded.split(":");
+        const pass = passParts.join(":");
+        if (user && pass) {
+          console.log("Detected Username/Password authentication");
+          authMethod = "auth.login";
+          authParams = [user, pass];
+        }
+      }
+    } catch (e) {
+      // Not base64 or invalid, treat as API Key
+    }
+
     this.send({
       id: "auth_request",
       msg: "method",
-      method: "auth.login_with_token",
-      params: [this.token],
+      method: authMethod,
+      params: authParams,
     });
   }
 
