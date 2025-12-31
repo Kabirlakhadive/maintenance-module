@@ -462,9 +462,21 @@ export const HardwareTrends: React.FC = () => {
       <Col xs={24} lg={16}>
         <GrafanaPanel
           title="Thermal Monitoring"
-          subtitle="Real-time temperature readings (Simulated if sensors unavailable)"
+          subtitle={`Real-time temperature readings ${
+            servers.some((s) => s.hardware.cpu.temperature_celsius.is_simulated)
+              ? "(Simulated fallback active)"
+              : ""
+          }`}
           height={350}
-          actions={<Tag color="orange">SIMULATED FALLBACK</Tag>}
+          actions={
+            servers.some(
+              (s) => s.hardware.cpu.temperature_celsius.is_simulated
+            ) ? (
+              <Tag color="orange">SIMULATED FALLBACK</Tag>
+            ) : (
+              <Tag color="success">REAL</Tag>
+            )
+          }
         >
           <Row gutter={[16, 16]}>
             <Col span={24}>
@@ -633,9 +645,19 @@ export const HardwareTrends: React.FC = () => {
       <Col xs={24} lg={12}>
         <GrafanaPanel
           title="Power Supply Monitoring"
-          subtitle="PSU status, voltage levels, and power consumption (SIMULATED)"
+          subtitle={`PSU status, voltage levels, and power consumption ${
+            servers.some((s) => s.hardware.power.is_simulated)
+              ? "(SIMULATED)"
+              : ""
+          }`}
           height={400}
-          actions={<Tag color="blue">SIMULATED</Tag>}
+          actions={
+            servers.some((s) => s.hardware.power.is_simulated) ? (
+              <Tag color="blue">SIMULATED</Tag>
+            ) : (
+              <Tag color="success">REAL</Tag>
+            )
+          }
         >
           <Row gutter={[16, 16]}>
             <Col span={24}>
@@ -777,9 +799,19 @@ export const HardwareTrends: React.FC = () => {
       <Col xs={24} lg={12}>
         <GrafanaPanel
           title="Cooling System Monitoring"
-          subtitle="Fan speeds and thermal management (SIMULATED)"
+          subtitle={`Fan speeds and thermal management ${
+            servers.some((s) => s.environment?.is_simulated)
+              ? "(SIMULATED)"
+              : ""
+          }`}
           height={400}
-          actions={<Tag color="blue">SIMULATED</Tag>}
+          actions={
+            servers.some((s) => s.environment?.is_simulated) ? (
+              <Tag color="blue">SIMULATED</Tag>
+            ) : (
+              <Tag color="success">REAL</Tag>
+            )
+          }
         >
           <Row gutter={[16, 16]}>
             <Col span={24}>
