@@ -351,6 +351,11 @@ export class TrueNASConnector {
       "12v": 0,
     };
 
+    const fans: any = {
+      cpu_fans: [],
+      case_fans: [],
+    };
+
     sensors.forEach((s) => {
       const name = s.name.toLowerCase();
       // Power
@@ -364,6 +369,23 @@ export class TrueNASConnector {
       if (name.includes("5v") && !name.includes("dual"))
         voltage_levels["5v"] = s.value;
       if (name.includes("12v")) voltage_levels["12v"] = s.value;
+
+      // Fans (Backward compatibility for PowerMetrics)
+      if (s.type === "Fan" || s.units === "RPM") {
+        const fanData = {
+          label: s.name,
+          current_rpm: s.value,
+          max_rpm: 0,
+          status: s.value > 0 ? "normal" : "stopped",
+          is_simulated: false,
+        };
+
+        if (name.includes("cpu")) {
+          fans.cpu_fans.push(fanData);
+        } else {
+          fans.case_fans.push(fanData);
+        }
+      }
     });
 
     const psu_status = [];
@@ -384,6 +406,7 @@ export class TrueNASConnector {
         "12v_fluctuation": 0,
       },
       voltage_stability: "stable",
+      fans, // RESTORED PROPERTY
     };
   }
 
