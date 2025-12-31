@@ -78,23 +78,31 @@ export class TrueNASConnector {
   private onMessage(data: WebSocket.RawData) {
     try {
       const msg = JSON.parse(data.toString());
+      console.log(
+        "DEBUG: WS Message Received:",
+        JSON.stringify(msg).substring(0, 200)
+      ); // Log part of message
 
       if (msg.msg === "result") {
         // Handle Auth Result
-        if (msg.id === "auth_request" && msg.result === true) {
-          console.log("TrueNAS Auth Successful");
-          this.isAuthenticated = true;
+        if (msg.id === "auth_request") {
+          if (msg.result === true) {
+            console.log("TrueNAS Auth Successful");
+            this.isAuthenticated = true;
 
-          // Fetch System Info (Hostname)
-          this.send({
-            id: "sys_info_request",
-            msg: "method",
-            method: "system.info",
-            params: [],
-          });
+            // Fetch System Info (Hostname)
+            this.send({
+              id: "sys_info_request",
+              msg: "method",
+              method: "system.info",
+              params: [],
+            });
 
-          this.subscribeToMetrics();
-          this.startIPMIPolling();
+            this.subscribeToMetrics();
+            this.startIPMIPolling();
+          } else {
+            console.error("TrueNAS Auth FAILED:", JSON.stringify(msg));
+          }
         }
 
         // Handle System Info Result
