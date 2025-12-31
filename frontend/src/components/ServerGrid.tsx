@@ -165,10 +165,11 @@ export const ServerGrid: React.FC<ServerGridProps> = ({
           {environment && (
             <>
               <Descriptions.Item label="Ambient Temp">
-                {environment.temperature.ambient_celsius.toFixed(1)}°C
+                {environment?.temperature?.ambient_celsius?.toFixed(1) || "N/A"}
+                °C
               </Descriptions.Item>
               <Descriptions.Item label="Chassis Fans">
-                {environment.cooling.fans.length} operational
+                {environment?.cooling?.fans?.length || 0} operational
               </Descriptions.Item>
             </>
           )}

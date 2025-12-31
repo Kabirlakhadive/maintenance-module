@@ -795,7 +795,7 @@ export const HardwareTrends: React.FC = () => {
                         <Text strong>CPU Cooling</Text>
                         <Divider style={{ margin: "8px 0" }} />
                         <Space direction="vertical" style={{ width: "100%" }}>
-                          {server.hardware.power.fans.cpu_fans?.map(
+                          {server.hardware.power.fans?.cpu_fans?.map(
                             (fan, i) => (
                               <div key={i}>
                                 <div
@@ -846,7 +846,7 @@ export const HardwareTrends: React.FC = () => {
                         <Text strong>Chassis Cooling</Text>
                         <Divider style={{ margin: "8px 0" }} />
                         <Space direction="vertical" style={{ width: "100%" }}>
-                          {server.environment?.cooling.fans.map((fan, i) => (
+                          {server.environment?.cooling?.fans?.map((fan, i) => (
                             <div key={i}>
                               <div
                                 style={{
