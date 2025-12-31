@@ -241,7 +241,8 @@ export class TrueNASConnector {
           (s) =>
             s.name.toLowerCase().includes("cpu") &&
             s.name.toLowerCase().includes("temp") &&
-            s.type === "Temperature"
+            s.type === "Temperature" &&
+            !s.name.toLowerCase().includes("margin")
         )
         .map((s) => (s.reading === "N/A" ? 0 : parseFloat(s.reading)))
         .filter((v) => v > 0);
@@ -437,7 +438,8 @@ export class TrueNASConnector {
           (s) =>
             s.name.toLowerCase().includes("cpu") &&
             s.name.toLowerCase().includes("temp") &&
-            s.type === "Temperature"
+            s.type === "Temperature" &&
+            !s.name.toLowerCase().includes("margin")
         )
         .map((s) => (s.reading === "N/A" ? 0 : parseFloat(s.reading)))
         .filter((v) => v > 0);
