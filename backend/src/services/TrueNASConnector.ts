@@ -320,12 +320,24 @@ export class TrueNASConnector {
     // Map IPMI data to HardwareHealth structure
     // We strictly use IPMI for: Power, Environment (Fans, Temp), and Chassis Security
 
-    const powerMetrics = this.mapIPMIPower(this.ipmiSensors, this.ipmiChassis);
-    const envMetrics = this.mapIPMIEnvironment(
-      this.ipmiSensors,
-      this.ipmiChassis
+    console.log(
+      "DEBUG: mergeIPMIData called. Sensors count:",
+      this.ipmiSensors?.length,
+      "Chassis:",
+      this.ipmiChassis ? "Yes" : "No"
     );
-    const securityMetrics = this.mapIPMISecurity(this.ipmiChassis);
+
+    const powerMetrics = this.mapIPMIPower(
+      this.ipmiSensors || [],
+      this.ipmiChassis || {}
+    );
+    const envMetrics = this.mapIPMIEnvironment(
+      this.ipmiSensors || [],
+      this.ipmiChassis || {}
+    );
+    const securityMetrics = this.mapIPMISecurity(this.ipmiChassis || {});
+
+    console.log("DEBUG: Computed PowerMetrics:", JSON.stringify(powerMetrics));
 
     // Update latestMetrics with new IPMI info
     this.latestMetrics = {
