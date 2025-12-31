@@ -356,10 +356,17 @@ export class TrueNASConnector {
       case_fans: [],
     };
 
+    const psu_status: string[] = [];
+    let psu_count = 0;
+
     sensors.forEach((s) => {
       const name = s.name.toLowerCase();
       // Power
-      if (name.includes("pwr consumption") || name.includes("system power")) {
+      if (
+        name.includes("pwr consumption") ||
+        name.includes("system power") ||
+        name.includes("total_power")
+      ) {
         power_watts = s.value;
       }
 
@@ -369,6 +376,35 @@ export class TrueNASConnector {
       if (name.includes("5v") && !name.includes("dual"))
         voltage_levels["5v"] = s.value;
       if (name.includes("12v")) voltage_levels["12v"] = s.value;
+
+      // PSU Status
+      if (
+        name.includes("psu") &&
+        (name.includes("status") || name.includes("supply"))
+      ) {
+        // If "ok" (0x00? or string), mark healthy.
+        // TrueNAS IPMI often returns string values if parsed, or numbers.
+        // Assuming raw value checking might be needed, but 's.value' is likely parsed.
+        // Based on user output: "Presence detected" or "Presence detected, Power Supply AC lost"
+        // If it's a string from middleware:
+        const val = String(s.value || "").toLowerCase();
+        if (
+          val.includes("ac lost") ||
+          val.includes("failure") ||
+          val.includes("error")
+        ) {
+          psu_status.push("critical");
+        } else if (
+          val.includes("presence detected") ||
+          val === "ok" ||
+          s.value === 1
+        ) {
+          psu_status.push("healthy");
+        } else {
+          psu_status.push("warning");
+        }
+        psu_count++;
+      }
 
       // Fans (Backward compatibility for PowerMetrics)
       if (s.type === "Fan" || s.units === "RPM") {
@@ -388,14 +424,20 @@ export class TrueNASConnector {
       }
     });
 
-    const psu_status = [];
-    if (chassis.power_fault === "true") psu_status.push("fault");
-    else psu_status.push("healthy");
+    // Fallback if no specific PSU sensors found but chassis reports simple status
+    if (psu_status.length === 0) {
+      if (chassis.power_fault === "true" || chassis.power_fault === true) {
+        psu_status.push("critical");
+      } else {
+        psu_status.push("healthy");
+      }
+      psu_count = 1;
+    }
 
     return {
       is_simulated: false,
       psu_status: psu_status,
-      psu_count: 1, // hard to detect count without specific sensors
+      psu_count: psu_count,
       power_consumption_watts: power_watts,
       power_consumption_peak_watts: 0, // Need history for this
       power_efficiency_percent: 90, // Assumption
