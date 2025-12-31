@@ -375,6 +375,14 @@ export class TrueNASConnector {
       this.ipmiChassis ? "Yes" : "No"
     );
 
+    // Log all sensor names/values to find Power sensor
+    if (this.ipmiSensors && this.ipmiSensors.length > 0) {
+      const sensorSummary = this.ipmiSensors
+        .map((s) => `${s.name}=${s.reading}`)
+        .join(", ");
+      console.log("DEBUG: All IPMI Sensors:", sensorSummary);
+    }
+
     const powerMetrics = this.mapIPMIPower(
       this.ipmiSensors || [],
       this.ipmiChassis || {}
